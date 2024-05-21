@@ -1,0 +1,19 @@
+localaddr = ":8765"
+bearer = "grmbl"
+resolveraddr = "[::1]:7777"
+resolvertimeout = "10m"
+resolvernotfoundtimeout = "10s"
+externaladdr = "https://localhost:8765"
+loglevel = "DEBUG"
+
+[grpcclient]
+mediaserverdb = "localhost:7653"
+
+[resttls]
+type = "dev"
+
+[server]
+type = "dev"
+
+[client]
+type = "dev"
