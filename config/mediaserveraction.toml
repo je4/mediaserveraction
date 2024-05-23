@@ -1,4 +1,4 @@
-localaddr = ":8765"
+localaddr = ":8789"
 bearer = "grmbl"
 resolveraddr = "[::1]:7777"
 resolvertimeout = "10m"

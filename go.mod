@@ -5,13 +5,14 @@ go 1.22.2
 require (
 	emperror.dev/errors v0.8.1
 	github.com/BurntSushi/toml v1.3.2
-	github.com/je4/genericproto/v2 v2.0.1
+	github.com/je4/genericproto/v2 v2.0.2
 	github.com/je4/mediaserverapi/v2 v2.0.0-20240515170337-53fabb9551ea
-	github.com/je4/mediaserverproto/v2 v2.0.2
+	github.com/je4/mediaserverproto/v2 v2.0.7
 	github.com/je4/miniresolver/v2 v2.0.3
 	github.com/je4/trustutil/v2 v2.0.9
 	github.com/je4/utils/v2 v2.0.33
-	github.com/rs/zerolog v1.32.0
+	github.com/rs/zerolog v1.33.0
+	google.golang.org/grpc v1.64.0
 	google.golang.org/protobuf v1.34.1
 )
 
@@ -49,15 +50,14 @@ require (
 	github.com/swaggo/swag v1.16.3 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
-	go.step.sm/crypto v0.43.1 // indirect
+	go.step.sm/crypto v0.45.1 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/arch v0.7.0 // indirect
-	golang.org/x/crypto v0.21.0 // indirect
-	golang.org/x/net v0.22.0 // indirect
-	golang.org/x/sys v0.18.0 // indirect
-	golang.org/x/text v0.14.0 // indirect
+	golang.org/x/crypto v0.23.0 // indirect
+	golang.org/x/net v0.25.0 // indirect
+	golang.org/x/sys v0.20.0 // indirect
+	golang.org/x/text v0.15.0 // indirect
 	golang.org/x/tools v0.19.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240318140521-94a12d6c2237 // indirect
-	google.golang.org/grpc v1.63.2 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240521202816-d264139d666e // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

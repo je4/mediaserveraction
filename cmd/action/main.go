@@ -5,12 +5,17 @@ import (
 	"flag"
 	"fmt"
 	genericproto "github.com/je4/genericproto/v2/pkg/generic/proto"
-	"github.com/je4/mediaserverapi/v2/config"
-	"github.com/je4/mediaserverapi/v2/pkg/rest"
+	"github.com/je4/mediaserveraction/v2/config"
+	"github.com/je4/mediaserveraction/v2/pkg/actionCache"
+	"github.com/je4/mediaserveraction/v2/pkg/actionController"
+	"github.com/je4/mediaserveraction/v2/pkg/actionDispatcher"
+	pb "github.com/je4/mediaserverproto/v2/pkg/mediaserveraction/proto"
 	mediaserverdbClient "github.com/je4/mediaserverproto/v2/pkg/mediaserverdb/client"
 	mediaserverdbproto "github.com/je4/mediaserverproto/v2/pkg/mediaserverdb/proto"
 	miniresolverClient "github.com/je4/miniresolver/v2/pkg/client"
 	"github.com/je4/miniresolver/v2/pkg/grpchelper"
+	"github.com/je4/miniresolver/v2/pkg/miniresolverproto"
+	"github.com/je4/trustutil/v2/pkg/certutil"
 	"github.com/je4/trustutil/v2/pkg/loader"
 	configutil "github.com/je4/utils/v2/pkg/config"
 	"github.com/je4/utils/v2/pkg/zLogger"
@@ -22,7 +27,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"sync"
 	"syscall"
 	"time"
 )
@@ -99,6 +103,7 @@ func main() {
 	}
 	defer clientLoader.Close()
 
+	var resolver miniresolverproto.MiniResolverClient
 	if conf.ResolverAddr != "" {
 		logger.Info().Msgf("resolver address is %s", conf.ResolverAddr)
 		miniResolverClient, miniResolverCloser, err := miniresolverClient.CreateClient(conf.ResolverAddr, clientCert)
@@ -107,6 +112,7 @@ func main() {
 		}
 		defer miniResolverCloser.Close()
 		grpchelper.RegisterResolver(miniResolverClient, time.Duration(conf.ResolverTimeout), time.Duration(conf.ResolverNotFoundTimeout), logger)
+		resolver = miniResolverClient
 	}
 
 	dbClient, dbClientCloser, err := mediaserverdbClient.CreateClient(dbClientAddr, clientCert)
@@ -123,20 +129,44 @@ func main() {
 			logger.Info().Msgf("mediaserverdb ping response: %s", resp.GetMessage())
 		}
 	}
-	ctrl, err := rest.NewController(conf.LocalAddr, conf.ExternalAddr, restTLSConfig, conf.Bearer, dbClient, logger)
-	if err != nil {
-		logger.Fatal().Msgf("cannot create controller: %v", err)
-	}
-	var wg = &sync.WaitGroup{}
-	ctrl.Start(wg)
 
+	// create TLS Certificate.
+	// the certificate MUST contain <package>.<service> as DNS name
+	certutil.AddDefaultDNSNames(grpchelper.GetService(pb.ActionDispatcher_Ping_FullMethodName), grpchelper.GetService(pb.ActionController_Ping_FullMethodName))
+	serverTLSConfig, serverLoader, err := loader.CreateServerLoader(true, conf.ServerTLS, nil, logger)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("cannot create server loader")
+	}
+	defer serverLoader.Close()
+
+	// create grpc server with resolver for name resolution
+	grpcServer, err := grpchelper.NewServer(conf.LocalAddr, serverTLSConfig, resolver, logger)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("cannot create server")
+	}
+
+	// register the server
+
+	cache := actionCache.NewCache(dbClient, logger)
+	adService, err := actionDispatcher.NewActionDispatcher(cache, clientCert, time.Duration(conf.ResolverTimeout), dbClient, logger)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("cannot create action dispatcher service")
+	}
+	pb.RegisterActionDispatcherServer(grpcServer, adService)
+
+	acService, err := actionController.NewActionController(cache, dbClient, logger)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("cannot create action controller service")
+	}
+	pb.RegisterActionControllerServer(grpcServer, acService)
+
+	grpcServer.Startup()
 	done := make(chan os.Signal, 1)
 	signal.Notify(done, syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL)
 	fmt.Println("press ctrl+c to stop server")
 	s := <-done
 	fmt.Println("got signal:", s)
 
-	ctrl.GracefulStop()
-	wg.Wait()
+	defer grpcServer.GracefulStop()
 
 }
