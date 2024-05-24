@@ -79,14 +79,6 @@ func main() {
 	_logger.Level(zLogger.LogLevel(conf.LogLevel))
 	var logger zLogger.ZLogger = &_logger
 
-	/*
-		serverCert, serverLoader, err := loader.CreateServerLoader(false, conf.ServerTLS, nil, logger)
-		if err != nil {
-			logger.Panic().Msgf("cannot create server loader: %v", err)
-		}
-		defer serverLoader.Close()
-	*/
-
 	var dbClientAddr string
 	if conf.ResolverAddr != "" {
 		dbClientAddr = grpchelper.GetAddress(mediaserverdbproto.DBController_Ping_FullMethodName)

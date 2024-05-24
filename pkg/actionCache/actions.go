@@ -3,6 +3,7 @@ package actionCache
 import (
 	"context"
 	"emperror.dev/errors"
+	"github.com/google/uuid"
 	pb "github.com/je4/mediaserverproto/v2/pkg/mediaserveraction/proto"
 )
 
@@ -16,10 +17,11 @@ func NewActions(mediaType string, action []string) *Actions {
 }
 
 type ActionJob struct {
+	id         string
 	collection string
 	signature  string
 	action     string
-	params     map[string]string
+	params     ActionParams
 	resultChan chan<- error
 }
 
@@ -34,9 +36,10 @@ func (a *Actions) AddClient(name string, client *ClientEntry) {
 	a.client[name] = client
 }
 
-func (a *Actions) Action(collection, signature, action string, params map[string]string) error {
+func (a *Actions) Action(collection, signature, action string, params ActionParams) error {
 	resultChan := make(chan error)
 	a.actionJobChan <- &ActionJob{
+		id:         uuid.NewString(),
 		collection: collection,
 		signature:  signature,
 		action:     action,

@@ -61,13 +61,19 @@ func (c *ClientEntry) doIt(job *ActionJob) error {
 	}
 	actionResponse := resp.GetResponse()
 	if actionResponse.GetStatus() != pbgeneric.ResultStatus_OK {
-		return status.Errorf(codes.Internal, "job %v failed: %s", job, actionResponse.GetMessage())
+		return status.Errorf(codes.Internal, "job %s failed: %s", job.id, actionResponse.GetMessage())
 	}
 	cache := resp.GetCache()
 	if cache == nil {
-		return status.Errorf(codes.Internal, "job %v failed: no cache", job)
+		return status.Errorf(codes.Internal, "job %s failed: no cache", job.id)
 	}
-	c.db.SetCache(context.Background(), cache)
+	resp2, err := c.db.SetCache(context.Background(), cache)
+	if err != nil {
+		return status.Errorf(codes.Internal, "job %s failed: cannot store cache: %v", job.id, err)
+	}
+	if resp2.GetStatus() != pbgeneric.ResultStatus_OK {
+		return status.Errorf(codes.Internal, "job %s failed: cannot store cache: %s", job.id, resp2.GetMessage())
+	}
 	return nil
 }
 
@@ -82,6 +88,7 @@ func (c *ClientEntry) Start(workers uint32, logger zLogger.ZLogger) error {
 			for {
 				select {
 				case job := <-c.jobChan:
+					logger.Info().Str("job", job.id).Str("client", c.name).Uint32("worker", thisWorkerNum).Msgf("job %v", job)
 					err := c.doIt(job)
 					if err != nil {
 						errCode := status.Code(err)
@@ -89,9 +96,10 @@ func (c *ClientEntry) Start(workers uint32, logger zLogger.ZLogger) error {
 							// if we cannot connect do some panic stuff
 
 						}
-						logger.Error().Err(err).Str("client", c.name).Uint32("worker", thisWorkerNum).Msgf("error processing job %v", job)
+						logger.Error().Err(err).Str("job", job.id).Str("client", c.name).Uint32("worker", thisWorkerNum).Msgf("error processing job %v", job)
 					}
 					job.resultChan <- err
+					logger.Info().Str("job", job.id).Str("client", c.name).Uint32("worker", thisWorkerNum).Msgf("job done %v", job)
 				case <-c.workersDone[thisWorkerNum]:
 					logger.Info().Str("client", c.name).Uint32("worker", thisWorkerNum).Msg("worker done")
 					return
