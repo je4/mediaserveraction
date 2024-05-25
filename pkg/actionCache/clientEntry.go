@@ -22,6 +22,7 @@ func NewClientEntry(client pb.ActionControllerClient, closer io.Closer, interval
 		clientCloser: closer,
 		clientDone:   make(chan bool),
 		wg:           sync.WaitGroup{},
+		workersDone:  map[uint32]chan bool{},
 	}
 	ce.RefreshTimeout(interval)
 	return ce
