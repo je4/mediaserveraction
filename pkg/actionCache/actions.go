@@ -4,7 +4,9 @@ import (
 	"context"
 	"emperror.dev/errors"
 	"github.com/google/uuid"
+	mediaserverationactionproto "github.com/je4/mediaserverproto/v2/pkg/mediaserveraction/proto"
 	pb "github.com/je4/mediaserverproto/v2/pkg/mediaserveraction/proto"
+	mediaserverdbproto "github.com/je4/mediaserverproto/v2/pkg/mediaserverdb/proto"
 )
 
 func NewActions(mediaType string, action []string) *Actions {
@@ -16,13 +18,15 @@ func NewActions(mediaType string, action []string) *Actions {
 	}
 }
 
+type ActionResult struct {
+	err    error
+	result *mediaserverdbproto.Cache
+}
+
 type ActionJob struct {
 	id         string
-	collection string
-	signature  string
-	action     string
-	params     ActionParams
-	resultChan chan<- error
+	ap         *mediaserverationactionproto.ActionParam
+	resultChan chan<- *ActionResult
 }
 
 type Actions struct {
@@ -36,21 +40,19 @@ func (a *Actions) AddClient(name string, client *ClientEntry) {
 	a.client[name] = client
 }
 
-func (a *Actions) Action(collection, signature, action string, params ActionParams) error {
-	resultChan := make(chan error)
+func (a *Actions) Action(ap *mediaserverationactionproto.ActionParam) (*mediaserverdbproto.Cache, error) {
+	item := ap.GetItem()
+	resultChan := make(chan *ActionResult)
 	a.actionJobChan <- &ActionJob{
 		id:         uuid.NewString(),
-		collection: collection,
-		signature:  signature,
-		action:     action,
-		params:     params,
+		ap:         ap,
 		resultChan: resultChan,
 	}
-	err := <-resultChan
-	if err != nil {
-		return errors.Wrapf(err, "action %s::%s %v failed", a.mediaType, action, params)
+	result := <-resultChan
+	if result.err != nil {
+		return nil, errors.Wrapf(result.err, "action %s/%s/%s/%s failed", item.GetIdentifier().GetCollection(), item.GetIdentifier().GetSignature(), ap.GetAction(), ap.GetParams())
 	}
-	return nil
+	return result.result, nil
 }
 
 func (a *Actions) GetClient(name string) (*ClientEntry, bool) {

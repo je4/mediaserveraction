@@ -5,7 +5,7 @@ import (
 	"emperror.dev/errors"
 	pbgeneric "github.com/je4/genericproto/v2/pkg/generic/proto"
 	pb "github.com/je4/mediaserverproto/v2/pkg/mediaserveraction/proto"
-	pbdb "github.com/je4/mediaserverproto/v2/pkg/mediaserverdb/proto"
+	mediaserverdbproto "github.com/je4/mediaserverproto/v2/pkg/mediaserverdb/proto"
 	"github.com/je4/utils/v2/pkg/zLogger"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-func NewClientEntry(client pb.ActionControllerClient, closer io.Closer, interval time.Duration, db pbdb.DBControllerClient) *ClientEntry {
+func NewClientEntry(client pb.ActionControllerClient, closer io.Closer, interval time.Duration, db mediaserverdbproto.DBControllerClient) *ClientEntry {
 	ce := &ClientEntry{
 		Mutex:        sync.Mutex{},
 		db:           db,
@@ -30,7 +30,7 @@ func NewClientEntry(client pb.ActionControllerClient, closer io.Closer, interval
 type ClientEntry struct {
 	sync.Mutex
 	name          string
-	db            pbdb.DBControllerClient
+	db            mediaserverdbproto.DBControllerClient
 	client        pb.ActionControllerClient
 	clientDone    chan bool
 	clientCloser  io.Closer
@@ -47,34 +47,19 @@ func (c *ClientEntry) setJobChannel(jobChan <-chan *ActionJob) {
 	c.jobChan = jobChan
 }
 
-func (c *ClientEntry) doIt(job *ActionJob) error {
-	resp, err := c.client.Action(context.Background(), &pb.ActionParam{
-		Item: &pbdb.ItemIdentifier{
-			Collection: job.collection,
-			Signature:  job.signature,
-		},
-		Action: job.action,
-		Params: job.params,
-	})
+func (c *ClientEntry) doIt(job *ActionJob) (*mediaserverdbproto.Cache, error) {
+	cache, err := c.client.Action(context.Background(), job.ap)
 	if err != nil {
-		return errors.Wrapf(err, "job %v failed", job)
-	}
-	actionResponse := resp.GetResponse()
-	if actionResponse.GetStatus() != pbgeneric.ResultStatus_OK {
-		return status.Errorf(codes.Internal, "job %s failed: %s", job.id, actionResponse.GetMessage())
-	}
-	cache := resp.GetCache()
-	if cache == nil {
-		return status.Errorf(codes.Internal, "job %s failed: no cache", job.id)
+		return nil, errors.Wrapf(err, "job %v failed", job)
 	}
 	resp2, err := c.db.SetCache(context.Background(), cache)
 	if err != nil {
-		return status.Errorf(codes.Internal, "job %s failed: cannot store cache: %v", job.id, err)
+		return nil, errors.Wrapf(err, "job %s failed: cannot store cache", job.id)
 	}
 	if resp2.GetStatus() != pbgeneric.ResultStatus_OK {
-		return status.Errorf(codes.Internal, "job %s failed: cannot store cache: %s", job.id, resp2.GetMessage())
+		return nil, errors.Errorf("job %s failed: cannot store cache: %s", job.id, resp2.GetMessage())
 	}
-	return nil
+	return cache, nil
 }
 
 func (c *ClientEntry) Start(workers uint32, logger zLogger.ZLogger) error {
@@ -89,7 +74,7 @@ func (c *ClientEntry) Start(workers uint32, logger zLogger.ZLogger) error {
 				select {
 				case job := <-c.jobChan:
 					logger.Info().Str("job", job.id).Str("client", c.name).Uint32("worker", thisWorkerNum).Msgf("job %v", job)
-					err := c.doIt(job)
+					cache, err := c.doIt(job)
 					if err != nil {
 						errCode := status.Code(err)
 						if errCode == codes.Unavailable {
@@ -98,7 +83,7 @@ func (c *ClientEntry) Start(workers uint32, logger zLogger.ZLogger) error {
 						}
 						logger.Error().Err(err).Str("job", job.id).Str("client", c.name).Uint32("worker", thisWorkerNum).Msgf("error processing job %v", job)
 					}
-					job.resultChan <- err
+					job.resultChan <- &ActionResult{err: err, result: cache}
 					logger.Info().Str("job", job.id).Str("client", c.name).Uint32("worker", thisWorkerNum).Msgf("job done %v", job)
 				case <-c.workersDone[thisWorkerNum]:
 					logger.Info().Str("client", c.name).Uint32("worker", thisWorkerNum).Msg("worker done")

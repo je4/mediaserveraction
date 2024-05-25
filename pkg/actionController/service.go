@@ -4,7 +4,7 @@ import (
 	"context"
 	pbgeneric "github.com/je4/genericproto/v2/pkg/generic/proto"
 	"github.com/je4/mediaserveraction/v2/pkg/actionCache"
-	pbdb "github.com/je4/mediaserverproto/v2/pkg/mediaserverdb/proto"
+	mediaserverdbproto "github.com/je4/mediaserverproto/v2/pkg/mediaserverdb/proto"
 	"github.com/je4/utils/v2/pkg/zLogger"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -13,7 +13,7 @@ import (
 	pb "github.com/je4/mediaserverproto/v2/pkg/mediaserveraction/proto"
 )
 
-func NewActionController(cache *actionCache.Cache, db pbdb.DBControllerClient, logger zLogger.ZLogger) (*mediaserverAction, error) {
+func NewActionController(cache *actionCache.Cache, db mediaserverdbproto.DBControllerClient, logger zLogger.ZLogger) (*mediaserverAction, error) {
 	return &mediaserverAction{
 		cache:  cache,
 		db:     db,
@@ -23,7 +23,7 @@ func NewActionController(cache *actionCache.Cache, db pbdb.DBControllerClient, l
 
 type mediaserverAction struct {
 	pb.UnimplementedActionControllerServer
-	db     pbdb.DBControllerClient
+	db     mediaserverdbproto.DBControllerClient
 	cache  *actionCache.Cache
 	logger zLogger.ZLogger
 }
@@ -45,6 +45,15 @@ func (d *mediaserverAction) GetParams(ctx context.Context, param *pb.ParamsParam
 		Values: params,
 	}, nil
 }
-func (d *mediaserverAction) Action(context.Context, *pb.ActionParam) (*pb.ActionResponse, error) {
-	return nil, status.Errorf(codes.NotFound, "not implemented")
+func (d *mediaserverAction) Action(ctx context.Context, ap *pb.ActionParam) (*mediaserverdbproto.Cache, error) {
+	item := ap.GetItem()
+	if item == nil {
+		return nil, status.Errorf(codes.InvalidArgument, "no item defined")
+	}
+	cache, err := d.cache.Action(ap)
+	if err != nil {
+		itemIdentifier := item.GetIdentifier()
+		return nil, status.Errorf(codes.Internal, "error executing action %s/%s/%s/%s: %v", itemIdentifier.GetCollection(), itemIdentifier.GetSignature(), ap.GetAction(), actionCache.ActionParams(ap.GetParams()).String(), err)
+	}
+	return cache, nil
 }

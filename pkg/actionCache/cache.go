@@ -1,9 +1,9 @@
 package actionCache
 
 import (
-	"context"
 	"emperror.dev/errors"
 	"fmt"
+	mediaserverationactionproto "github.com/je4/mediaserverproto/v2/pkg/mediaserveraction/proto"
 	mediaserverdbproto "github.com/je4/mediaserverproto/v2/pkg/mediaserverdb/proto"
 	"github.com/je4/utils/v2/pkg/zLogger"
 )
@@ -22,20 +22,13 @@ type Cache struct {
 	logger zLogger.ZLogger
 }
 
-func (c *Cache) Action(collection, signature, action string, params map[string]string) error {
-	it, err := c.db.GetItem(context.Background(), &mediaserverdbproto.ItemIdentifier{
-		Collection: collection,
-		Signature:  signature,
-	})
-	if err != nil {
-		return errors.Wrapf(err, "cannot get item %s/%s", collection, signature)
-
-	}
-	actions, ok := c.GetActions(it.GetMetadata().GetType(), action)
+func (c *Cache) Action(ap *mediaserverationactionproto.ActionParam) (*mediaserverdbproto.Cache, error) {
+	item := ap.GetItem()
+	actions, ok := c.GetActions(item.GetMetadata().GetType(), ap.GetAction())
 	if !ok {
-		return errors.Errorf("actions %s::%s not found", it.GetMetadata().GetType(), action)
+		return nil, errors.Errorf("actions %s::%s not found", item.GetMetadata().GetType(), ap.GetAction())
 	}
-	return actions.Action(collection, signature, action, params)
+	return actions.Action(ap)
 }
 
 func (c *Cache) GetParams(mediaType string, action string) ([]string, error) {
