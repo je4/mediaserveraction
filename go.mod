@@ -8,7 +8,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/je4/filesystem/v2 v2.0.12
 	github.com/je4/genericproto/v2 v2.0.2
-	github.com/je4/mediaserverproto/v2 v2.0.7
+	github.com/je4/mediaserverproto/v2 v2.0.8
 	github.com/je4/miniresolver/v2 v2.0.3
 	github.com/je4/trustutil/v2 v2.0.9
 	github.com/je4/utils/v2 v2.0.33
