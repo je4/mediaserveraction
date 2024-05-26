@@ -6,20 +6,23 @@ import (
 	mediaserverationactionproto "github.com/je4/mediaserverproto/v2/pkg/mediaserveraction/proto"
 	mediaserverdbproto "github.com/je4/mediaserverproto/v2/pkg/mediaserverdb/proto"
 	"github.com/je4/utils/v2/pkg/zLogger"
+	"time"
 )
 
-func NewCache(db mediaserverdbproto.DBControllerClient, logger zLogger.ZLogger) *Cache {
+func NewCache(actionTimeout time.Duration, db mediaserverdbproto.DBControllerClient, logger zLogger.ZLogger) *Cache {
 	return &Cache{
-		cache:  map[string]*Actions{},
-		logger: logger,
-		db:     db,
+		cache:         map[string]*Actions{},
+		actionTimeout: actionTimeout,
+		logger:        logger,
+		db:            db,
 	}
 }
 
 type Cache struct {
-	cache  map[string]*Actions
-	db     mediaserverdbproto.DBControllerClient
-	logger zLogger.ZLogger
+	cache         map[string]*Actions
+	actionTimeout time.Duration
+	db            mediaserverdbproto.DBControllerClient
+	logger        zLogger.ZLogger
 }
 
 func (c *Cache) Action(ap *mediaserverationactionproto.ActionParam) (*mediaserverdbproto.Cache, error) {
@@ -28,7 +31,7 @@ func (c *Cache) Action(ap *mediaserverationactionproto.ActionParam) (*mediaserve
 	if !ok {
 		return nil, errors.Errorf("actions %s::%s not found", item.GetMetadata().GetType(), ap.GetAction())
 	}
-	return actions.Action(ap)
+	return actions.Action(ap, c.actionTimeout)
 }
 
 func (c *Cache) GetParams(mediaType string, action string) ([]string, error) {

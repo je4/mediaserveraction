@@ -139,7 +139,7 @@ func main() {
 
 	// register the server
 
-	cache := actionCache.NewCache(dbClient, logger)
+	cache := actionCache.NewCache(time.Duration(conf.ActionTimeout), dbClient, logger)
 	adService, err := actionDispatcher.NewActionDispatcher(cache, clientCert, time.Duration(conf.ResolverTimeout), dbClient, logger)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("cannot create action dispatcher service")

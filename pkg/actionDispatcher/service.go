@@ -85,7 +85,7 @@ func (d *mediaserverActionDispatcher) AddController(ctx context.Context, param *
 		if err != nil {
 			return nil, status.Errorf(500, "cannot create client: %v", err)
 		}
-		clientEntry = actionCache.NewClientEntry(c, closer, d.refreshInterval, d.db)
+		clientEntry = actionCache.NewClientEntry(fmt.Sprintf("%s::%v/%s", param.GetType(), actions, address), c, closer, d.refreshInterval, d.db)
 		d.cache.AddClientEntry(param.GetType(), actions[0], address, clientEntry)
 		if err := clientEntry.Start(param.GetConcurrency(), d.logger); err != nil {
 			return nil, status.Errorf(codes.Internal, "cannot start client %s: %v", address, err)

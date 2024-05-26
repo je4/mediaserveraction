@@ -3,10 +3,12 @@ package actionCache
 import (
 	"context"
 	"emperror.dev/errors"
+	"fmt"
 	"github.com/google/uuid"
 	mediaserverationactionproto "github.com/je4/mediaserverproto/v2/pkg/mediaserveraction/proto"
 	pb "github.com/je4/mediaserverproto/v2/pkg/mediaserveraction/proto"
 	mediaserverdbproto "github.com/je4/mediaserverproto/v2/pkg/mediaserverdb/proto"
+	"time"
 )
 
 func NewActions(mediaType string, action []string) *Actions {
@@ -29,6 +31,11 @@ type ActionJob struct {
 	resultChan chan<- *ActionResult
 }
 
+func (aj *ActionJob) String() string {
+	item := aj.ap.GetItem()
+	return fmt.Sprintf("ActionJob{id: %s, action: %s/%s/%s/%s}", aj.id, item.GetIdentifier().GetCollection(), item.GetIdentifier().GetSignature(), aj.ap.GetAction(), ActionParams(aj.ap.GetParams()).String())
+}
+
 type Actions struct {
 	client        map[string]*ClientEntry
 	mediaType     string
@@ -38,15 +45,20 @@ type Actions struct {
 
 func (a *Actions) AddClient(name string, client *ClientEntry) {
 	a.client[name] = client
+	client.setJobChannel(a.actionJobChan)
 }
 
-func (a *Actions) Action(ap *mediaserverationactionproto.ActionParam) (*mediaserverdbproto.Cache, error) {
+func (a *Actions) Action(ap *mediaserverationactionproto.ActionParam, actionTimeout time.Duration) (*mediaserverdbproto.Cache, error) {
 	item := ap.GetItem()
 	resultChan := make(chan *ActionResult)
-	a.actionJobChan <- &ActionJob{
+	select {
+	case a.actionJobChan <- &ActionJob{
 		id:         uuid.NewString(),
 		ap:         ap,
 		resultChan: resultChan,
+	}:
+	case <-time.After(actionTimeout):
+		return nil, errors.Errorf("action %s/%s/%s/%s timeout", item.GetIdentifier().GetCollection(), item.GetIdentifier().GetSignature(), ap.GetAction(), ap.GetParams())
 	}
 	result := <-resultChan
 	if result.err != nil {

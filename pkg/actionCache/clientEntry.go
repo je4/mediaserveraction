@@ -14,9 +14,10 @@ import (
 	"time"
 )
 
-func NewClientEntry(client pb.ActionControllerClient, closer io.Closer, interval time.Duration, db mediaserverdbproto.DBControllerClient) *ClientEntry {
+func NewClientEntry(name string, client pb.ActionControllerClient, closer io.Closer, interval time.Duration, db mediaserverdbproto.DBControllerClient) *ClientEntry {
 	ce := &ClientEntry{
 		Mutex:        sync.Mutex{},
+		name:         name,
 		db:           db,
 		client:       client,
 		clientCloser: closer,
@@ -53,7 +54,7 @@ func (c *ClientEntry) doIt(job *ActionJob) (*mediaserverdbproto.Cache, error) {
 	if err != nil {
 		return nil, errors.Wrapf(err, "job %v failed", job)
 	}
-	resp2, err := c.db.SetCache(context.Background(), cache)
+	resp2, err := c.db.InsertCache(context.Background(), cache)
 	if err != nil {
 		return nil, errors.Wrapf(err, "job %s failed: cannot store cache", job.id)
 	}
@@ -66,9 +67,10 @@ func (c *ClientEntry) doIt(job *ActionJob) (*mediaserverdbproto.Cache, error) {
 func (c *ClientEntry) Start(workers uint32, logger zLogger.ZLogger) error {
 	for workerNum := range workers {
 		c.wg.Add(1)
-		go func() {
-			thisWorkerNum := workerNum
+		go func(thisWorkerNum uint32) {
+			c.Lock()
 			c.workersDone[thisWorkerNum] = make(chan bool)
+			c.Unlock()
 			defer c.wg.Done()
 			logger.Info().Str("client", c.name).Uint32("worker", thisWorkerNum).Msg("worker started")
 			for {
@@ -91,7 +93,7 @@ func (c *ClientEntry) Start(workers uint32, logger zLogger.ZLogger) error {
 					return
 				}
 			}
-		}()
+		}(workerNum)
 	}
 	return nil
 }
