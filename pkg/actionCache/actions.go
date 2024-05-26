@@ -58,13 +58,17 @@ func (a *Actions) Action(ap *mediaserverationactionproto.ActionParam, actionTime
 		resultChan: resultChan,
 	}:
 	case <-time.After(actionTimeout):
-		return nil, errors.Errorf("action %s/%s/%s/%s timeout", item.GetIdentifier().GetCollection(), item.GetIdentifier().GetSignature(), ap.GetAction(), ap.GetParams())
+		return nil, errors.Errorf("action start timeout for  %s/%s/%s/%s", item.GetIdentifier().GetCollection(), item.GetIdentifier().GetSignature(), ap.GetAction(), ap.GetParams())
 	}
-	result := <-resultChan
-	if result.err != nil {
-		return nil, errors.Wrapf(result.err, "action %s/%s/%s/%s failed", item.GetIdentifier().GetCollection(), item.GetIdentifier().GetSignature(), ap.GetAction(), ap.GetParams())
+	select {
+	case <-time.After(actionTimeout):
+		return nil, errors.Errorf("action end timeout for %s/%s/%s/%s", item.GetIdentifier().GetCollection(), item.GetIdentifier().GetSignature(), ap.GetAction(), ap.GetParams())
+	case result := <-resultChan:
+		if result.err != nil {
+			return nil, errors.Wrapf(result.err, "action %s/%s/%s/%s failed", item.GetIdentifier().GetCollection(), item.GetIdentifier().GetSignature(), ap.GetAction(), ap.GetParams())
+		}
+		return result.result, nil
 	}
-	return result.result, nil
 }
 
 func (a *Actions) GetClient(name string) (*ClientEntry, bool) {
