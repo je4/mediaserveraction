@@ -19,8 +19,9 @@ import (
 )
 
 func NewActionDispatcher(cache *actionCache.Cache, clientTLS *tls.Config, refreshInterval time.Duration, db pbdb.DBControllerClient, logger zLogger.ZLogger) (*mediaserverActionDispatcher, error) {
+	_logger := logger.With().Str("rpcService", "mediaserverActionDispatcher").Logger()
 	return &mediaserverActionDispatcher{
-		logger:          logger,
+		logger:          &_logger,
 		cache:           cache,
 		clientTLS:       clientTLS,
 		refreshInterval: refreshInterval,

@@ -14,10 +14,11 @@ import (
 )
 
 func NewActionController(cache *actionCache.Cache, db mediaserverdbproto.DBControllerClient, logger zLogger.ZLogger) (*mediaserverAction, error) {
+	_logger := logger.With().Str("rpcService", "mediaserverAction").Logger()
 	return &mediaserverAction{
 		cache:  cache,
 		db:     db,
-		logger: logger,
+		logger: &_logger,
 	}, nil
 }
 
