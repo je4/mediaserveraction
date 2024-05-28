@@ -3,13 +3,12 @@ package actionCache
 import (
 	"emperror.dev/errors"
 	"fmt"
-	mediaserverationactionproto "github.com/je4/mediaserverproto/v2/pkg/mediaserveraction/proto"
-	mediaserverdbproto "github.com/je4/mediaserverproto/v2/pkg/mediaserverdb/proto"
+	mediaserverproto "github.com/je4/mediaserverproto/v2/pkg/mediaserver/proto"
 	"github.com/je4/utils/v2/pkg/zLogger"
 	"time"
 )
 
-func NewCache(actionTimeout time.Duration, db mediaserverdbproto.DBControllerClient, logger zLogger.ZLogger) *Cache {
+func NewCache(actionTimeout time.Duration, db mediaserverproto.DatabaseClient, logger zLogger.ZLogger) *Cache {
 	return &Cache{
 		cache:         map[string]*Actions{},
 		actionTimeout: actionTimeout,
@@ -21,11 +20,11 @@ func NewCache(actionTimeout time.Duration, db mediaserverdbproto.DBControllerCli
 type Cache struct {
 	cache         map[string]*Actions
 	actionTimeout time.Duration
-	db            mediaserverdbproto.DBControllerClient
+	db            mediaserverproto.DatabaseClient
 	logger        zLogger.ZLogger
 }
 
-func (c *Cache) Action(ap *mediaserverationactionproto.ActionParam) (*mediaserverdbproto.Cache, error) {
+func (c *Cache) Action(ap *mediaserverproto.ActionParam) (*mediaserverproto.Cache, error) {
 	item := ap.GetItem()
 	actions, ok := c.GetActions(item.GetMetadata().GetType(), ap.GetAction())
 	if !ok {

@@ -4,8 +4,7 @@ import (
 	"context"
 	"emperror.dev/errors"
 	pbgeneric "github.com/je4/genericproto/v2/pkg/generic/proto"
-	pb "github.com/je4/mediaserverproto/v2/pkg/mediaserveraction/proto"
-	mediaserverdbproto "github.com/je4/mediaserverproto/v2/pkg/mediaserverdb/proto"
+	mediaserverproto "github.com/je4/mediaserverproto/v2/pkg/mediaserver/proto"
 	"github.com/je4/utils/v2/pkg/zLogger"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -14,7 +13,7 @@ import (
 	"time"
 )
 
-func NewClientEntry(name string, client pb.ActionControllerClient, closer io.Closer, interval time.Duration, db mediaserverdbproto.DBControllerClient) *ClientEntry {
+func NewClientEntry(name string, client mediaserverproto.ActionClient, closer io.Closer, interval time.Duration, db mediaserverproto.DatabaseClient) *ClientEntry {
 	ce := &ClientEntry{
 		Mutex:        sync.Mutex{},
 		name:         name,
@@ -32,8 +31,8 @@ func NewClientEntry(name string, client pb.ActionControllerClient, closer io.Clo
 type ClientEntry struct {
 	sync.Mutex
 	name          string
-	db            mediaserverdbproto.DBControllerClient
-	client        pb.ActionControllerClient
+	db            mediaserverproto.DatabaseClient
+	client        mediaserverproto.ActionClient
 	clientDone    chan bool
 	clientCloser  io.Closer
 	clientTimeout time.Time
@@ -49,7 +48,7 @@ func (c *ClientEntry) setJobChannel(jobChan <-chan *ActionJob) {
 	c.jobChan = jobChan
 }
 
-func (c *ClientEntry) doIt(job *ActionJob) (*mediaserverdbproto.Cache, error) {
+func (c *ClientEntry) doIt(job *ActionJob) (*mediaserverproto.Cache, error) {
 	cache, err := c.client.Action(context.Background(), job.ap)
 	if err != nil {
 		return nil, errors.Wrapf(err, "job %v failed", job)

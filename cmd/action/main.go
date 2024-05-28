@@ -9,9 +9,8 @@ import (
 	"github.com/je4/mediaserveraction/v2/pkg/actionCache"
 	"github.com/je4/mediaserveraction/v2/pkg/actionController"
 	"github.com/je4/mediaserveraction/v2/pkg/actionDispatcher"
-	pb "github.com/je4/mediaserverproto/v2/pkg/mediaserveraction/proto"
-	mediaserverdbClient "github.com/je4/mediaserverproto/v2/pkg/mediaserverdb/client"
-	mediaserverdbproto "github.com/je4/mediaserverproto/v2/pkg/mediaserverdb/proto"
+	mediaserverclient "github.com/je4/mediaserverproto/v2/pkg/mediaserver/client"
+	mediaserverproto "github.com/je4/mediaserverproto/v2/pkg/mediaserver/proto"
 	miniresolverClient "github.com/je4/miniresolver/v2/pkg/client"
 	"github.com/je4/miniresolver/v2/pkg/grpchelper"
 	"github.com/je4/miniresolver/v2/pkg/miniresolverproto"
@@ -86,7 +85,7 @@ func main() {
 
 	var dbClientAddr string
 	if conf.ResolverAddr != "" {
-		dbClientAddr = grpchelper.GetAddress(mediaserverdbproto.DBController_Ping_FullMethodName)
+		dbClientAddr = grpchelper.GetAddress(mediaserverproto.Database_Ping_FullMethodName)
 	} else {
 		if _, ok := conf.GRPCClient["mediaserverdb"]; !ok {
 			logger.Fatal().Msg("no mediaserverdb grpc client defined")
@@ -112,7 +111,7 @@ func main() {
 		resolver = miniResolverClient
 	}
 
-	dbClient, dbClientCloser, err := mediaserverdbClient.CreateClient(dbClientAddr, clientCert)
+	dbClient, dbClientCloser, err := mediaserverclient.NewDatabaseClient(dbClientAddr, clientCert)
 	if err != nil {
 		logger.Panic().Msgf("cannot create mediaserverdb grpc client: %v", err)
 	}
@@ -129,7 +128,7 @@ func main() {
 
 	// create TLS Certificate.
 	// the certificate MUST contain <package>.<service> as DNS name
-	certutil.AddDefaultDNSNames(grpchelper.GetService(pb.ActionDispatcher_Ping_FullMethodName), grpchelper.GetService(pb.ActionController_Ping_FullMethodName))
+	certutil.AddDefaultDNSNames(grpchelper.GetService(mediaserverproto.ActionDispatcher_Ping_FullMethodName), grpchelper.GetService(mediaserverproto.Action_Ping_FullMethodName))
 	serverTLSConfig, serverLoader, err := loader.CreateServerLoader(true, conf.ServerTLS, nil, logger)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("cannot create server loader")
@@ -149,13 +148,13 @@ func main() {
 	if err != nil {
 		logger.Fatal().Err(err).Msg("cannot create action dispatcher service")
 	}
-	pb.RegisterActionDispatcherServer(grpcServer, adService)
+	mediaserverproto.RegisterActionDispatcherServer(grpcServer, adService)
 
 	acService, err := actionController.NewActionController(cache, dbClient, logger)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("cannot create action controller service")
 	}
-	pb.RegisterActionControllerServer(grpcServer, acService)
+	mediaserverproto.RegisterActionServer(grpcServer, acService)
 
 	grpcServer.Startup()
 	done := make(chan os.Signal, 1)

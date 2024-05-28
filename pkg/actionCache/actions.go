@@ -5,9 +5,7 @@ import (
 	"emperror.dev/errors"
 	"fmt"
 	"github.com/google/uuid"
-	mediaserverationactionproto "github.com/je4/mediaserverproto/v2/pkg/mediaserveraction/proto"
-	pb "github.com/je4/mediaserverproto/v2/pkg/mediaserveraction/proto"
-	mediaserverdbproto "github.com/je4/mediaserverproto/v2/pkg/mediaserverdb/proto"
+	mediaserverproto "github.com/je4/mediaserverproto/v2/pkg/mediaserver/proto"
 	"time"
 )
 
@@ -22,12 +20,12 @@ func NewActions(mediaType string, action []string) *Actions {
 
 type ActionResult struct {
 	err    error
-	result *mediaserverdbproto.Cache
+	result *mediaserverproto.Cache
 }
 
 type ActionJob struct {
 	id         string
-	ap         *mediaserverationactionproto.ActionParam
+	ap         *mediaserverproto.ActionParam
 	resultChan chan<- *ActionResult
 }
 
@@ -48,7 +46,7 @@ func (a *Actions) AddClient(name string, client *ClientEntry) {
 	client.setJobChannel(a.actionJobChan)
 }
 
-func (a *Actions) Action(ap *mediaserverationactionproto.ActionParam, actionTimeout time.Duration) (*mediaserverdbproto.Cache, error) {
+func (a *Actions) Action(ap *mediaserverproto.ActionParam, actionTimeout time.Duration) (*mediaserverproto.Cache, error) {
 	item := ap.GetItem()
 	resultChan := make(chan *ActionResult)
 	select {
@@ -78,7 +76,7 @@ func (a *Actions) GetClient(name string) (*ClientEntry, bool) {
 
 func (a *Actions) GetParams(action string) ([]string, error) {
 	for address, client := range a.client {
-		resp, err := client.client.GetParams(context.Background(), &pb.ParamsParam{
+		resp, err := client.client.GetParams(context.Background(), &mediaserverproto.ParamsParam{
 			Type:   a.mediaType,
 			Action: action,
 		})

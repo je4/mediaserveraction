@@ -6,9 +6,8 @@ import (
 	"fmt"
 	pbgeneric "github.com/je4/genericproto/v2/pkg/generic/proto"
 	"github.com/je4/mediaserveraction/v2/pkg/actionCache"
-	"github.com/je4/mediaserverproto/v2/pkg/mediaserveraction/client"
-	pb "github.com/je4/mediaserverproto/v2/pkg/mediaserveraction/proto"
-	pbdb "github.com/je4/mediaserverproto/v2/pkg/mediaserverdb/proto"
+	"github.com/je4/mediaserverproto/v2/pkg/mediaserver/client"
+	mediaserverproto "github.com/je4/mediaserverproto/v2/pkg/mediaserver/proto"
 	"github.com/je4/utils/v2/pkg/zLogger"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/peer"
@@ -18,7 +17,7 @@ import (
 	"time"
 )
 
-func NewActionDispatcher(cache *actionCache.Cache, clientTLS *tls.Config, refreshInterval time.Duration, db pbdb.DBControllerClient, logger zLogger.ZLogger) (*mediaserverActionDispatcher, error) {
+func NewActionDispatcher(cache *actionCache.Cache, clientTLS *tls.Config, refreshInterval time.Duration, db mediaserverproto.DatabaseClient, logger zLogger.ZLogger) (*mediaserverActionDispatcher, error) {
 	_logger := logger.With().Str("rpcService", "mediaserverActionDispatcher").Logger()
 	return &mediaserverActionDispatcher{
 		logger:          &_logger,
@@ -30,12 +29,12 @@ func NewActionDispatcher(cache *actionCache.Cache, clientTLS *tls.Config, refres
 }
 
 type mediaserverActionDispatcher struct {
-	pb.UnimplementedActionDispatcherServer
+	mediaserverproto.UnimplementedActionDispatcherServer
 	logger          zLogger.ZLogger
 	cache           *actionCache.Cache
 	clientTLS       *tls.Config
 	refreshInterval time.Duration
-	db              pbdb.DBControllerClient
+	db              mediaserverproto.DatabaseClient
 }
 
 func (d *mediaserverActionDispatcher) Ping(context.Context, *emptypb.Empty) (*pbgeneric.DefaultResponse, error) {
@@ -48,7 +47,7 @@ func (d *mediaserverActionDispatcher) Ping(context.Context, *emptypb.Empty) (*pb
 
 // AddController adds a controller to the dispatcher
 // Caveat: different services sharing an action MUST share all actions (no partial intersection of actions allowed)
-func (d *mediaserverActionDispatcher) AddController(ctx context.Context, param *pb.ActionDispatcherParam) (*pb.DispatcherDefaultResponse, error) {
+func (d *mediaserverActionDispatcher) AddController(ctx context.Context, param *mediaserverproto.ActionDispatcherParam) (*mediaserverproto.DispatcherDefaultResponse, error) {
 	actions := param.GetAction()
 	if len(actions) == 0 {
 		return nil, status.Errorf(codes.InvalidArgument, "no actions defined")
@@ -82,7 +81,7 @@ func (d *mediaserverActionDispatcher) AddController(ctx context.Context, param *
 		clientEntry.SetTimeout(time.Now().Add(d.refreshInterval))
 	} else {
 		// create new client
-		c, closer, err := client.CreateControllerClient(address, d.clientTLS)
+		c, closer, err := client.NewActionClient(address, d.clientTLS)
 		if err != nil {
 			return nil, status.Errorf(500, "cannot create client: %v", err)
 		}
@@ -92,7 +91,7 @@ func (d *mediaserverActionDispatcher) AddController(ctx context.Context, param *
 			return nil, status.Errorf(codes.Internal, "cannot start client %s: %v", address, err)
 		}
 	}
-	return &pb.DispatcherDefaultResponse{
+	return &mediaserverproto.DispatcherDefaultResponse{
 		Response: &pbgeneric.DefaultResponse{
 			Status:  pbgeneric.ResultStatus_OK,
 			Message: fmt.Sprintf("controller %s added to %s::%v", address, param.GetType(), actions),
@@ -100,7 +99,7 @@ func (d *mediaserverActionDispatcher) AddController(ctx context.Context, param *
 		NextCallWait: int64(d.refreshInterval.Seconds()),
 	}, nil
 }
-func (d *mediaserverActionDispatcher) RemoveController(ctx context.Context, param *pb.ActionDispatcherParam) (*pbgeneric.DefaultResponse, error) {
+func (d *mediaserverActionDispatcher) RemoveController(ctx context.Context, param *mediaserverproto.ActionDispatcherParam) (*pbgeneric.DefaultResponse, error) {
 	actions := param.GetAction()
 	if len(actions) == 0 {
 		return nil, status.Errorf(codes.InvalidArgument, "no actions defined")
