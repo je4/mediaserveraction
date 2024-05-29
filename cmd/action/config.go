@@ -3,25 +3,25 @@ package main
 import (
 	"emperror.dev/errors"
 	"github.com/BurntSushi/toml"
-	"github.com/je4/trustutil/v2/pkg/loader"
+	loaderConfig "github.com/je4/trustutil/v2/pkg/config"
 	"github.com/je4/utils/v2/pkg/config"
+	"github.com/je4/utils/v2/pkg/zLogger"
 	"io/fs"
 	"os"
 )
 
 type MediaserverActionConfig struct {
-	LocalAddr               string            `toml:"localaddr"`
-	ExternalAddr            string            `toml:"externaladdr"`
-	Bearer                  string            `toml:"bearer"`
-	ResolverAddr            string            `toml:"resolveraddr"`
-	ResolverTimeout         config.Duration   `toml:"resolvertimeout"`
-	ResolverNotFoundTimeout config.Duration   `toml:"resolvernotfoundtimeout"`
-	ActionTimeout           config.Duration   `toml:"actiontimeout"`
-	ServerTLS               *loader.TLSConfig `toml:"server"`
-	ClientTLS               *loader.TLSConfig `toml:"client"`
-	LogFile                 string            `toml:"logfile"`
-	LogLevel                string            `toml:"loglevel"`
-	GRPCClient              map[string]string `toml:"grpcclient"`
+	LocalAddr               string                  `toml:"localaddr"`
+	ExternalAddr            string                  `toml:"externaladdr"`
+	Bearer                  string                  `toml:"bearer"`
+	ResolverAddr            string                  `toml:"resolveraddr"`
+	ResolverTimeout         config.Duration         `toml:"resolvertimeout"`
+	ResolverNotFoundTimeout config.Duration         `toml:"resolvernotfoundtimeout"`
+	ActionTimeout           config.Duration         `toml:"actiontimeout"`
+	ServerTLS               *loaderConfig.TLSConfig `toml:"server"`
+	ClientTLS               *loaderConfig.TLSConfig `toml:"client"`
+	GRPCClient              map[string]string       `toml:"grpcclient"`
+	Log                     zLogger.Config          `toml:"log"`
 }
 
 func LoadMediaserverActionConfig(fSys fs.FS, fp string, conf *MediaserverActionConfig) error {
