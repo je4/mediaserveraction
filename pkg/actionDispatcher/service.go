@@ -9,6 +9,7 @@ import (
 	"github.com/je4/mediaserverproto/v2/pkg/mediaserver/client"
 	mediaserverproto "github.com/je4/mediaserverproto/v2/pkg/mediaserver/proto"
 	"github.com/je4/utils/v2/pkg/zLogger"
+	"golang.org/x/exp/maps"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
@@ -47,8 +48,9 @@ func (d *mediaserverActionDispatcher) Ping(context.Context, *emptypb.Empty) (*pb
 
 // AddController adds a controller to the dispatcher
 // Caveat: different services sharing an action MUST share all actions (no partial intersection of actions allowed)
-func (d *mediaserverActionDispatcher) AddController(ctx context.Context, param *mediaserverproto.ActionDispatcherParam) (*mediaserverproto.DispatcherDefaultResponse, error) {
-	actions := param.GetAction()
+func (d *mediaserverActionDispatcher) AddController(ctx context.Context, param *mediaserverproto.ActionDispatcherParam) (*mediaserverproto.ActionDispatcherDefaultResponse, error) {
+	actionParams := param.GetActions()
+	actions := maps.Keys(actionParams)
 	if len(actions) == 0 {
 		return nil, status.Errorf(codes.InvalidArgument, "no actions defined")
 	}
@@ -73,7 +75,13 @@ func (d *mediaserverActionDispatcher) AddController(ctx context.Context, param *
 		}
 	}
 
-	d.cache.AddActions(param.GetType(), actions)
+	aParams := map[string][]string{}
+	for action, params := range actionParams {
+		aParams[action] = params.GetValues()
+	}
+	if err := d.cache.AddActions(param.GetType(), aParams); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "cannot add actions: %v", err)
+	}
 	address := fmt.Sprintf("%s:%d", host, port)
 	clientEntry, ok := d.cache.GetClientEntry(param.GetType(), actions[0], address)
 	if ok {
@@ -91,7 +99,7 @@ func (d *mediaserverActionDispatcher) AddController(ctx context.Context, param *
 			return nil, status.Errorf(codes.Internal, "cannot start client %s: %v", address, err)
 		}
 	}
-	return &mediaserverproto.DispatcherDefaultResponse{
+	return &mediaserverproto.ActionDispatcherDefaultResponse{
 		Response: &pbgeneric.DefaultResponse{
 			Status:  pbgeneric.ResultStatus_OK,
 			Message: fmt.Sprintf("controller %s added to %s::%v", address, param.GetType(), actions),
@@ -100,7 +108,8 @@ func (d *mediaserverActionDispatcher) AddController(ctx context.Context, param *
 	}, nil
 }
 func (d *mediaserverActionDispatcher) RemoveController(ctx context.Context, param *mediaserverproto.ActionDispatcherParam) (*pbgeneric.DefaultResponse, error) {
-	actions := param.GetAction()
+	actionParams := param.GetActions()
+	actions := maps.Keys(actionParams)
 	if len(actions) == 0 {
 		return nil, status.Errorf(codes.InvalidArgument, "no actions defined")
 	}
@@ -148,4 +157,17 @@ func (d *mediaserverActionDispatcher) RemoveController(ctx context.Context, para
 		Status:  pbgeneric.ResultStatus_OK,
 		Message: fmt.Sprintf("controller %s removed from %s::%v", address, param.GetType(), actions),
 	}, nil
+}
+
+func (d *mediaserverActionDispatcher) GetActions(context.Context, *emptypb.Empty) (*mediaserverproto.ActionMap, error) {
+	actions := d.cache.GetAllActionParam()
+	res := &mediaserverproto.ActionMap{
+		Actions: map[string]*pbgeneric.StringList{},
+	}
+	for action, params := range actions {
+		res.Actions[action] = &pbgeneric.StringList{
+			Values: params,
+		}
+	}
+	return res, nil
 }

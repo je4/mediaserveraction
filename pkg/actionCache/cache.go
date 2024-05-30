@@ -5,6 +5,8 @@ import (
 	"fmt"
 	mediaserverproto "github.com/je4/mediaserverproto/v2/pkg/mediaserver/proto"
 	"github.com/je4/utils/v2/pkg/zLogger"
+	"golang.org/x/exp/maps"
+	"slices"
 	"time"
 )
 
@@ -13,6 +15,7 @@ func NewCache(actionTimeout time.Duration, db mediaserverproto.DatabaseClient, l
 		cache:         map[string]*Actions{},
 		actionTimeout: actionTimeout,
 		logger:        logger,
+		actionParams:  map[string][]string{},
 		db:            db,
 	}
 }
@@ -22,6 +25,7 @@ type Cache struct {
 	actionTimeout time.Duration
 	db            mediaserverproto.DatabaseClient
 	logger        zLogger.ZLogger
+	actionParams  map[string][]string
 }
 
 func (c *Cache) Action(ap *mediaserverproto.ActionParam) (*mediaserverproto.Cache, error) {
@@ -34,11 +38,11 @@ func (c *Cache) Action(ap *mediaserverproto.ActionParam) (*mediaserverproto.Cach
 }
 
 func (c *Cache) GetParams(mediaType string, action string) ([]string, error) {
-	actions, ok := c.GetActions(mediaType, action)
+	params, ok := c.actionParams[fmt.Sprintf("%s::%s", mediaType, action)]
 	if !ok {
-		return nil, fmt.Errorf("actions %s::%s not found", mediaType, action)
+		return nil, errors.Errorf("action %s::%s not found", mediaType, action)
 	}
-	return actions.GetParams(action)
+	return params, nil
 }
 
 func (c *Cache) SetAction(mediaType string, action string, actions *Actions) {
@@ -46,7 +50,22 @@ func (c *Cache) SetAction(mediaType string, action string, actions *Actions) {
 	c.cache[sig] = actions
 }
 
-func (c *Cache) AddActions(mediaType string, actions []string) {
+func (c *Cache) GetAllActionParam() map[string][]string {
+	return c.actionParams
+}
+
+func (c *Cache) AddActions(mediaType string, actionParams map[string][]string) error {
+	actions := maps.Keys(actionParams)
+	for action, params := range actionParams {
+		key := fmt.Sprintf("%s::%s", mediaType, action)
+		if cParams, ok := c.actionParams[key]; ok {
+			if slices.Compare(params, cParams) != 0 {
+				return errors.Errorf("action %s::%s already defined with different params", mediaType, action)
+			}
+		} else {
+			c.actionParams[key] = params
+		}
+	}
 	cd, ok := c.GetActions(mediaType, actions[0])
 	if !ok {
 		// create empty cache entry
@@ -56,6 +75,7 @@ func (c *Cache) AddActions(mediaType string, actions []string) {
 			c.SetAction(mediaType, a, cd)
 		}
 	}
+	return nil
 }
 
 func (c *Cache) GetActions(mediaType, action string) (*Actions, bool) {
