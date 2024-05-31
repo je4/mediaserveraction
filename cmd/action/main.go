@@ -87,7 +87,7 @@ func main() {
 		defer _logfile.Close()
 	}
 
-	l2 := _logger.With().Str("host", hostname).Str("addr", conf.LocalAddr).Logger() //.Output(output)
+	l2 := _logger.With().Str("host", hostname).Logger() //.Output(output)
 	var logger zLogger.ZLogger = &l2
 
 	clientTLSConfig, clientLoader, err := loader.CreateClientLoader(conf.ClientTLS, logger)
@@ -112,17 +112,20 @@ func main() {
 	}
 	defer resolverClient.Close()
 
-	dbClient, err := resolver.NewClient[mediaserverproto.DatabaseClient](resolverClient, mediaserverproto.NewDatabaseClient, mediaserverproto.Database_ServiceDesc.ServiceName)
-	if err != nil {
-		logger.Panic().Msgf("cannot create mediaserverdb grpc client: %v", err)
-	}
-	resolver.DoPing(dbClient, logger)
-
 	// create grpc server with resolver for name resolution
 	grpcServer, err := resolverClient.NewServer(conf.LocalAddr)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("cannot create server")
 	}
+	addr := grpcServer.GetAddr()
+	l2 = _logger.With().Str("addr", addr).Logger() //.Output(output)
+	logger = &l2
+
+	dbClient, err := resolver.NewClient[mediaserverproto.DatabaseClient](resolverClient, mediaserverproto.NewDatabaseClient, mediaserverproto.Database_ServiceDesc.ServiceName)
+	if err != nil {
+		logger.Panic().Msgf("cannot create mediaserverdb grpc client: %v", err)
+	}
+	resolver.DoPing(dbClient, logger)
 
 	// register the server
 

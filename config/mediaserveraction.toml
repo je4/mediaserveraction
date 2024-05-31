@@ -1,4 +1,5 @@
-localaddr = ":8789"
+#localaddr = ":8789"
+localaddr = ":0"
 bearer = "grmbl"
 #resolveraddr = "[::1]:7777"
 resolveraddr = "127.0.0.1:7777"
