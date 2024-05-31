@@ -107,9 +107,11 @@ func (c *ClientEntry) SetTimeout(expiration time.Time) {
 }
 
 func (c *ClientEntry) Close() error {
+	c.Lock()
 	for workerDone := range c.workersDone {
 		close(c.workersDone[workerDone])
 	}
+	c.Unlock()
 	done := make(chan bool)
 	go func() {
 		defer close(done)
