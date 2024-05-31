@@ -10,14 +10,17 @@ import (
 	"time"
 )
 
+var coreActions = []string{"item", "metadata"}
+
 func NewCache(actionTimeout time.Duration, db mediaserverproto.DatabaseClient, logger zLogger.ZLogger) *Cache {
-	return &Cache{
+	cache := &Cache{
 		cache:         map[string]*Actions{},
 		actionTimeout: actionTimeout,
 		logger:        logger,
 		actionParams:  map[string][]string{},
 		db:            db,
 	}
+	return cache
 }
 
 type Cache struct {
@@ -38,6 +41,9 @@ func (c *Cache) Action(ap *mediaserverproto.ActionParam) (*mediaserverproto.Cach
 }
 
 func (c *Cache) GetParams(mediaType string, action string) ([]string, error) {
+	if slices.Contains(coreActions, action) {
+		return []string{}, nil
+	}
 	params, ok := c.actionParams[fmt.Sprintf("%s::%s", mediaType, action)]
 	if !ok {
 		return nil, errors.Errorf("action %s::%s not found", mediaType, action)
