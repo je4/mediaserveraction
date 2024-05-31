@@ -73,6 +73,9 @@ func (c *ClientEntry) Start(workers uint32, logger zLogger.ZLogger) error {
 			defer c.wg.Done()
 			logger.Info().Str("client", c.name).Uint32("worker", thisWorkerNum).Msg("worker started")
 			for {
+				c.Lock()
+				wDone := c.workersDone[thisWorkerNum]
+				c.Unlock()
 				select {
 				case job := <-c.jobChan:
 					logger.Info().Str("job", job.id).Str("client", c.name).Uint32("worker", thisWorkerNum).Msgf("job %v", job)
@@ -87,7 +90,7 @@ func (c *ClientEntry) Start(workers uint32, logger zLogger.ZLogger) error {
 					}
 					job.resultChan <- &ActionResult{err: err, result: cache}
 					logger.Info().Str("job", job.id).Str("client", c.name).Uint32("worker", thisWorkerNum).Msgf("job done %v", job)
-				case <-c.workersDone[thisWorkerNum]:
+				case <-wDone:
 					logger.Info().Str("client", c.name).Uint32("worker", thisWorkerNum).Msg("worker done")
 					return
 				}
