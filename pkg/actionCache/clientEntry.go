@@ -67,15 +67,13 @@ func (c *ClientEntry) Start(workers uint32, logger zLogger.ZLogger) error {
 	for workerNum := range workers {
 		c.wg.Add(1)
 		go func(thisWorkerNum uint32) {
+			done := make(chan bool)
 			c.Lock()
-			c.workersDone[thisWorkerNum] = make(chan bool)
+			c.workersDone[thisWorkerNum] = done
 			c.Unlock()
 			defer c.wg.Done()
 			logger.Info().Str("client", c.name).Uint32("worker", thisWorkerNum).Msg("worker started")
 			for {
-				c.Lock()
-				wDone := c.workersDone[thisWorkerNum]
-				c.Unlock()
 				select {
 				case job := <-c.jobChan:
 					logger.Info().Str("job", job.id).Str("client", c.name).Uint32("worker", thisWorkerNum).Msgf("job %v", job)
@@ -83,14 +81,14 @@ func (c *ClientEntry) Start(workers uint32, logger zLogger.ZLogger) error {
 					if err != nil {
 						errCode := status.Code(err)
 						if errCode == codes.Unavailable {
-							// if we cannot connect do some panic stuff
+							// todo: if we cannot connect do some panic stuff
 
 						}
 						logger.Error().Err(err).Str("job", job.id).Str("client", c.name).Uint32("worker", thisWorkerNum).Msgf("error processing job %v", job)
 					}
 					job.resultChan <- &ActionResult{err: err, result: cache}
 					logger.Info().Str("job", job.id).Str("client", c.name).Uint32("worker", thisWorkerNum).Msgf("job done %v", job)
-				case <-wDone:
+				case <-done:
 					logger.Info().Str("client", c.name).Uint32("worker", thisWorkerNum).Msg("worker done")
 					return
 				}
