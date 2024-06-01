@@ -9,7 +9,7 @@ require (
 	github.com/BurntSushi/toml v1.4.0
 	github.com/google/uuid v1.6.0
 	github.com/je4/genericproto/v2 v2.0.3
-	github.com/je4/mediaserverproto/v2 v2.0.27
+	github.com/je4/mediaserverproto/v2 v2.0.28
 	github.com/je4/miniresolver/v2 v2.0.13
 	github.com/je4/trustutil/v2 v2.0.15
 	github.com/je4/utils/v2 v2.0.38
