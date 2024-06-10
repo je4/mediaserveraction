@@ -75,7 +75,7 @@ func (c *Cache) AddActions(mediaType string, actionParams map[string][]string) e
 	cd, ok := c.GetActions(mediaType, actions[0])
 	if !ok {
 		// create empty cache entry
-		cd = NewActions(mediaType, actions)
+		cd = NewActions(mediaType, actions, c.logger)
 		// add it for all actions
 		for _, a := range actions {
 			c.SetAction(mediaType, a, cd)
@@ -101,7 +101,7 @@ func (c *Cache) GetClientEntry(mediaType, action, address string) (*ClientEntry,
 func (c *Cache) AddClientEntry(mediaType, action, address string, client *ClientEntry) {
 	actions, ok := c.GetActions(mediaType, action)
 	if !ok {
-		actions = NewActions(mediaType, []string{action})
+		actions = NewActions(mediaType, []string{action}, c.logger)
 		c.SetAction(mediaType, action, actions)
 	}
 	actions.AddClient(address, client)
