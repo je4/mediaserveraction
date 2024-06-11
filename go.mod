@@ -11,7 +11,7 @@ require (
 	github.com/je4/genericproto/v2 v2.0.3
 	github.com/je4/mediaserverproto/v2 v2.0.28
 	github.com/je4/miniresolver/v2 v2.0.13
-	github.com/je4/trustutil/v2 v2.0.15
+	github.com/je4/trustutil/v2 v2.0.17
 	github.com/je4/utils/v2 v2.0.38
 	gitlab.switch.ch/ub-unibas/go-ublogger v0.0.0-20240529135102-38bc77a4bfdf
 	golang.org/x/exp v0.0.0-20240531132922-fd00a4e0eefc

@@ -87,7 +87,7 @@ func main() {
 		defer _logfile.Close()
 	}
 
-	l2 := _logger.With().Str("host", hostname).Logger() //.Output(output)
+	l2 := _logger.With().Timestamp().Str("host", hostname).Logger() //.Output(output)
 	var logger zLogger.ZLogger = &l2
 
 	clientTLSConfig, clientLoader, err := loader.CreateClientLoader(conf.ClientTLS, logger)

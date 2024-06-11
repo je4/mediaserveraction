@@ -8,9 +8,17 @@ import (
 	"github.com/google/uuid"
 	mediaserverproto "github.com/je4/mediaserverproto/v2/pkg/mediaserver/proto"
 	"github.com/je4/utils/v2/pkg/zLogger"
-	"sync"
 	"time"
 )
+
+func actionID(action string) string {
+	actionIDBytes := sha1.Sum([]byte(action))
+	return fmt.Sprintf("%x", actionIDBytes)
+}
+
+func actionStr(collection, signature, action string, params ActionParams) string {
+	return fmt.Sprintf("%s/%s/%s/%s", collection, signature, action, params.String())
+}
 
 func NewActions(mediaType string, action []string, logger zLogger.ZLogger) *Actions {
 	return &Actions{
@@ -18,8 +26,7 @@ func NewActions(mediaType string, action []string, logger zLogger.ZLogger) *Acti
 		mediaType:      mediaType,
 		action:         action,
 		actionJobChan:  make(chan *ActionJob),
-		currentActions: map[string][]chan<- *ActionResult{},
-		currentMutex:   sync.Mutex{},
+		currentActions: NewCurrentActions(),
 		logger:         logger,
 	}
 }
@@ -45,8 +52,7 @@ type Actions struct {
 	mediaType      string
 	action         []string
 	actionJobChan  chan *ActionJob
-	currentActions map[string][]chan<- *ActionResult
-	currentMutex   sync.Mutex
+	currentActions *CurrentActions
 	logger         zLogger.ZLogger
 }
 
@@ -58,15 +64,12 @@ func (a *Actions) AddClient(name string, client *ClientEntry) {
 func (a *Actions) Action(ap *mediaserverproto.ActionParam, actionTimeout time.Duration) (*mediaserverproto.Cache, error) {
 	item := ap.GetItem()
 	var params ActionParams = ap.GetParams()
-	actionStr := fmt.Sprintf("%s/%s/%s/%s", item.GetIdentifier().GetCollection(), item.GetIdentifier().GetSignature(), ap.GetAction(), params.String())
-	actionIDBytes := sha1.Sum([]byte(actionStr))
-	actionID := fmt.Sprintf("%x", actionIDBytes)
-	a.currentMutex.Lock()
-	if _, ok := a.currentActions[actionID]; ok {
-		a.logger.Debug().Msgf("action %s already running - waiting", actionStr)
+	actionString := actionStr(item.GetIdentifier().GetCollection(), item.GetIdentifier().GetSignature(), ap.GetAction(), params)
+	id := actionID(actionString)
+	if a.currentActions.HasAction(id) {
+		a.logger.Debug().Msgf("action %s already running - waiting", actionString)
 		waitFor := make(chan *ActionResult)
-		a.currentActions[actionID] = append(a.currentActions[actionID], waitFor)
-		a.currentMutex.Unlock()
+		a.currentActions.AddWaiter(id, waitFor)
 		defer func() {
 			close(waitFor)
 		}()
@@ -82,7 +85,6 @@ func (a *Actions) Action(ap *mediaserverproto.ActionParam, actionTimeout time.Du
 			return result.result, nil
 		}
 	}
-	a.currentMutex.Unlock()
 	resultChan := make(chan *ActionResult)
 	a.logger.Debug().Msgf("running action %s", actionStr)
 	select {
@@ -91,9 +93,7 @@ func (a *Actions) Action(ap *mediaserverproto.ActionParam, actionTimeout time.Du
 		ap:         ap,
 		resultChan: resultChan,
 	}:
-		a.currentMutex.Lock()
-		a.currentActions[actionID] = []chan<- *ActionResult{}
-		a.currentMutex.Unlock()
+		a.currentActions.AddAction(id)
 	case <-time.After(actionTimeout):
 		return nil, errors.Errorf("action start timeout for  %s/%s/%s/%s", item.GetIdentifier().GetCollection(), item.GetIdentifier().GetSignature(), ap.GetAction(), params.String())
 	}
@@ -101,17 +101,11 @@ func (a *Actions) Action(ap *mediaserverproto.ActionParam, actionTimeout time.Du
 	case <-time.After(actionTimeout):
 		return nil, errors.Errorf("action end timeout for %s/%s/%s/%s", item.GetIdentifier().GetCollection(), item.GetIdentifier().GetSignature(), ap.GetAction(), params.String())
 	case result := <-resultChan:
-		a.currentMutex.Lock()
-		channels, ok := a.currentActions[actionID]
-		a.currentMutex.Unlock()
-		defer func() {
-			a.currentMutex.Lock()
-			delete(a.currentActions, actionID)
-			a.currentMutex.Unlock()
-		}()
-		if ok {
-			for _, c := range channels {
-				c <- result
+		channels := a.currentActions.GetWaiters(id)
+		for _, c := range channels {
+			select {
+			case c <- result:
+			default:
 			}
 		}
 		if result.err != nil {

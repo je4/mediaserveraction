@@ -16,9 +16,12 @@ type = "dev"
 
 [server]
 type = "dev"
+interval = "3m"
+usesystemcertpool = true
 
 [client]
 type = "dev"
+interval = "3m"
 
 [log]
 level = "debug"
@@ -35,5 +38,5 @@ dataset=""
 type="file"
 cert="certs/ub-log.ub.unibas.ch.cert.pem"
 key="certs/ub-log.ub.unibas.ch.key.pem"
-ca="certs/ca.crt"
+ca=["certs/ca.crt"]
 interval="1h"
