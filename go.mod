@@ -2,8 +2,6 @@ module github.com/je4/mediaserveraction/v2
 
 go 1.22.2
 
-replace github.com/telkomdev/go-stash => github.com/png-ub/go-stash v0.0.0-20230831094646-7daebd817e31
-
 require (
 	emperror.dev/errors v0.8.1
 	github.com/BurntSushi/toml v1.4.0
@@ -11,9 +9,9 @@ require (
 	github.com/je4/genericproto/v2 v2.0.3
 	github.com/je4/mediaserverproto/v2 v2.0.28
 	github.com/je4/miniresolver/v2 v2.0.13
-	github.com/je4/trustutil/v2 v2.0.17
+	github.com/je4/trustutil/v2 v2.0.18
 	github.com/je4/utils/v2 v2.0.38
-	gitlab.switch.ch/ub-unibas/go-ublogger v0.0.0-20240529135102-38bc77a4bfdf
+	gitlab.switch.ch/ub-unibas/go-ublogger v0.0.0-20240612084645-ba4f8357c0d4
 	golang.org/x/exp v0.0.0-20240604190554-fc45aab8b7f8
 	google.golang.org/grpc v1.64.0
 	google.golang.org/protobuf v1.34.2
