@@ -12,6 +12,8 @@ import (
 
 type MediaserverActionConfig struct {
 	LocalAddr               string                  `toml:"localaddr"`
+	ServerDomains           []string                `toml:"serverdomains"`
+	ClientDomain            string                  `toml:"clientdomain"`
 	ExternalAddr            string                  `toml:"externaladdr"`
 	Bearer                  string                  `toml:"bearer"`
 	ResolverAddr            string                  `toml:"resolveraddr"`

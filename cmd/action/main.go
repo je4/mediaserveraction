@@ -113,7 +113,7 @@ func main() {
 	defer resolverClient.Close()
 
 	// create grpc server with resolver for name resolution
-	grpcServer, err := resolverClient.NewServer(conf.LocalAddr)
+	grpcServer, err := resolverClient.NewServer(conf.LocalAddr, conf.ServerDomains)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("cannot create server")
 	}
@@ -121,7 +121,11 @@ func main() {
 	l2 = _logger.With().Timestamp().Str("addr", addr).Logger() //.Output(output)
 	logger = &l2
 
-	dbClient, err := resolver.NewClient[mediaserverproto.DatabaseClient](resolverClient, mediaserverproto.NewDatabaseClient, mediaserverproto.Database_ServiceDesc.ServiceName)
+	var domainPrefix string
+	if conf.ClientDomain != "" {
+		domainPrefix = conf.ClientDomain + "."
+	}
+	dbClient, err := resolver.NewClient[mediaserverproto.DatabaseClient](resolverClient, mediaserverproto.NewDatabaseClient, domainPrefix+mediaserverproto.Database_ServiceDesc.ServiceName)
 	if err != nil {
 		logger.Panic().Msgf("cannot create mediaserverdb grpc client: %v", err)
 	}
