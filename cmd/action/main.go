@@ -98,7 +98,13 @@ func main() {
 
 	// create TLS Certificate.
 	// the certificate MUST contain <package>.<service> as DNS name
-	certutil.AddDefaultDNSNames(mediaserverproto.Action_ServiceDesc.ServiceName, mediaserverproto.ActionDispatcher_ServiceDesc.ServiceName)
+	for _, domain := range conf.ServerDomains {
+		var domainPrefix string
+		if domain != "" {
+			domainPrefix = domain + "."
+		}
+		certutil.AddDefaultDNSNames(domainPrefix+mediaserverproto.Action_ServiceDesc.ServiceName, domainPrefix+mediaserverproto.ActionDispatcher_ServiceDesc.ServiceName)
+	}
 	serverTLSConfig, serverLoader, err := loader.CreateServerLoader(true, conf.ServerTLS, nil, logger)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("cannot create server loader")
