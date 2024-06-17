@@ -7,7 +7,7 @@ require (
 	github.com/BurntSushi/toml v1.4.0
 	github.com/google/uuid v1.6.0
 	github.com/je4/genericproto/v2 v2.0.3
-	github.com/je4/mediaserverproto/v2 v2.0.30
+	github.com/je4/mediaserverproto/v2 v2.0.35
 	github.com/je4/miniresolver/v2 v2.0.15
 	github.com/je4/trustutil/v2 v2.0.19
 	github.com/je4/utils/v2 v2.0.38
@@ -34,5 +34,5 @@ require (
 	golang.org/x/sys v0.21.0 // indirect
 	golang.org/x/text v0.16.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240610135401-a8a62080eff3 // indirect
-	k8s.io/klog/v2 v2.120.1 // indirect
+	k8s.io/klog/v2 v2.130.0 // indirect
 )

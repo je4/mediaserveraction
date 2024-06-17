@@ -53,6 +53,9 @@ func (c *ClientEntry) doIt(job *ActionJob) (*mediaserverproto.Cache, error) {
 	if err != nil {
 		return nil, errors.Wrapf(err, "job %v failed", job)
 	}
+	if cache.GetIdentifier() == nil {
+		return cache, nil
+	}
 	resp2, err := c.db.InsertCache(context.Background(), cache)
 	if err != nil {
 		return nil, errors.Wrapf(err, "job %s failed: cannot store cache", job.id)
