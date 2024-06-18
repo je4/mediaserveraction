@@ -134,6 +134,20 @@ func (a *Actions) GetParams(action string) ([]string, error) {
 	return nil, errors.Errorf("no client found for %s::%s", a.mediaType, action)
 }
 
-func (a *Actions) RemoveClient(name string) {
-	delete(a.client, name)
+func (a *Actions) RemoveClient(name string) error {
+	var errs []error
+	if client, ok := a.client[name]; ok {
+		if err := client.Close(); err != nil {
+			errs = append(errs, errors.Wrapf(err, "cannot close client %s", name))
+		}
+		delete(a.client, name)
+	}
+	if len(errs) > 0 {
+		return errors.Combine(errs...)
+	}
+	return nil
+}
+
+func (a *Actions) IsEmpty() bool {
+	return len(a.client) == 0
 }

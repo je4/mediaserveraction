@@ -98,6 +98,21 @@ func (c *Cache) GetClientEntry(mediaType, action, address string) (*ClientEntry,
 	return actions.GetClient(address)
 }
 
+func (c *Cache) RemoveClientEntry(mediaType, action, address string) error {
+	actions, ok := c.GetActions(mediaType, action)
+	if !ok {
+		return nil
+	}
+	var errs []error
+	if err := actions.RemoveClient(address); err != nil {
+		errs = append(errs, err)
+	}
+	if actions.IsEmpty() {
+		delete(c.cache, fmt.Sprintf("%s::%s", mediaType, action))
+	}
+	return errors.Combine(errs...)
+}
+
 func (c *Cache) AddClientEntry(mediaType, action, address string, client *ClientEntry) {
 	actions, ok := c.GetActions(mediaType, action)
 	if !ok {

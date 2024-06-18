@@ -134,25 +134,13 @@ func (d *mediaserverActionDispatcher) RemoveController(ctx context.Context, para
 		}
 	}
 	// gettin the cache
-	cd, ok := d.cache.GetActions(param.GetType(), actions[0])
-	if !ok {
-		return &pbgeneric.DefaultResponse{
-			Status:  pbgeneric.ResultStatus_OK,
-			Message: fmt.Sprintf("no controller found for %s::%s", param.GetType(), actions[0]),
-		}, nil
-	}
 	address := fmt.Sprintf("%s:%d", host, port)
-	clientEntry, ok := cd.GetClient(address)
-	if !ok {
+	if err := d.cache.RemoveClientEntry(param.GetType(), actions[0], address); err != nil {
 		return &pbgeneric.DefaultResponse{
 			Status:  pbgeneric.ResultStatus_OK,
-			Message: fmt.Sprintf("controller %s:%d not found in %s::%s", host, port, param.GetType(), actions[0]),
+			Message: fmt.Sprintf("cannot remove controller %s: %v", address, err),
 		}, nil
 	}
-	if err := clientEntry.Close(); err != nil {
-		return nil, status.Errorf(codes.Internal, "cannot close client: %v", err)
-	}
-	cd.RemoveClient(address)
 	return &pbgeneric.DefaultResponse{
 		Status:  pbgeneric.ResultStatus_OK,
 		Message: fmt.Sprintf("controller %s removed from %s::%v", address, param.GetType(), actions),
