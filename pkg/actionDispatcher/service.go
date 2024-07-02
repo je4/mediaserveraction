@@ -79,7 +79,11 @@ func (d *mediaserverActionDispatcher) AddController(ctx context.Context, param *
 	for action, params := range actionParams {
 		aParams[action] = params.GetValues()
 	}
-	if err := d.cache.AddActions(param.GetType(), aParams); err != nil {
+	queueSize := int(param.GetQueueSize())
+	if queueSize == 0 {
+		queueSize = int(2*param.GetConcurrency() + 1)
+	}
+	if err := d.cache.AddActions(param.GetType(), aParams, queueSize); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "cannot add actions: %v", err)
 	}
 	address := fmt.Sprintf("%s:%d", host, port)
@@ -93,8 +97,12 @@ func (d *mediaserverActionDispatcher) AddController(ctx context.Context, param *
 		if err != nil {
 			return nil, status.Errorf(500, "cannot create client: %v", err)
 		}
-		clientEntry = actionCache.NewClientEntry(fmt.Sprintf("%s::%v/%s", param.GetType(), actions, address), c, closer, d.refreshInterval, d.db)
-		d.cache.AddClientEntry(param.GetType(), actions[0], address, clientEntry)
+		queueSize = int(param.GetQueueSize())
+		if queueSize == 0 {
+			queueSize = int(2*param.GetConcurrency() + 1)
+		}
+		clientEntry = actionCache.NewClientEntry(fmt.Sprintf("%s::%v/%s", param.GetType(), actions, address), c, closer, d.refreshInterval, d.db, queueSize)
+		d.cache.AddClientEntry(param.GetType(), actions[0], address, queueSize, clientEntry)
 		if err := clientEntry.Start(param.GetConcurrency(), d.logger); err != nil {
 			return nil, status.Errorf(codes.Internal, "cannot start client %s: %v", address, err)
 		}

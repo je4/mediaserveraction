@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-func NewClientEntry(name string, client mediaserverproto.ActionClient, closer io.Closer, interval time.Duration, db mediaserverproto.DatabaseClient) *ClientEntry {
+func NewClientEntry(name string, client mediaserverproto.ActionClient, closer io.Closer, interval time.Duration, db mediaserverproto.DatabaseClient, queueSize int) *ClientEntry {
 	ce := &ClientEntry{
 		Mutex:        sync.Mutex{},
 		name:         name,
@@ -23,6 +23,7 @@ func NewClientEntry(name string, client mediaserverproto.ActionClient, closer io
 		clientDone:   make(chan bool),
 		wg:           sync.WaitGroup{},
 		workersDone:  map[uint32]chan bool{},
+		queueSize:    queueSize,
 	}
 	ce.RefreshTimeout(interval)
 	return ce
@@ -38,14 +39,16 @@ type ClientEntry struct {
 	clientTimeout time.Time
 	concurrency   uint32
 	workersDone   map[uint32]chan bool
-	jobChan       <-chan *ActionJob
-	wg            sync.WaitGroup
+	//jobChan       <-chan *ActionJob
+	wg        sync.WaitGroup
+	jobQueue  *Queue[*ActionJob]
+	queueSize int
 }
 
-func (c *ClientEntry) setJobChannel(jobChan <-chan *ActionJob) {
+func (c *ClientEntry) setJobQueue(jobQueue *Queue[*ActionJob]) {
 	c.Lock()
 	defer c.Unlock()
-	c.jobChan = jobChan
+	c.jobQueue = jobQueue
 }
 
 func (c *ClientEntry) doIt(job *ActionJob) (*mediaserverproto.Cache, error) {
@@ -77,8 +80,9 @@ func (c *ClientEntry) Start(workers uint32, logger zLogger.ZLogger) error {
 			defer c.wg.Done()
 			logger.Info().Str("client", c.name).Uint32("worker", thisWorkerNum).Msg("worker started")
 			for {
+
 				select {
-				case job := <-c.jobChan:
+				case job := <-c.jobQueue.Out():
 					logger.Info().Str("job", job.id).Str("client", c.name).Uint32("worker", thisWorkerNum).Msgf("job %v", job)
 					cache, err := c.doIt(job)
 					if err != nil {

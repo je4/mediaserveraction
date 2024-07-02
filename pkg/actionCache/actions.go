@@ -21,13 +21,15 @@ func actionStr(collection, signature, action string, params ActionParams) string
 }
 
 func NewActions(mediaType string, action []string, logger zLogger.ZLogger) *Actions {
+	l0 := logger.With().Str("mediaType", mediaType).Strs("actions", action).Logger()
 	return &Actions{
-		client:         map[string]*ClientEntry{},
-		mediaType:      mediaType,
-		action:         action,
-		actionJobChan:  make(chan *ActionJob),
+		client:    map[string]*ClientEntry{},
+		mediaType: mediaType,
+		action:    action,
+		//actionJobChan:  make(chan *ActionJob),
+		actionBuffer:   NewQueue[*ActionJob](0, &l0),
 		currentActions: NewCurrentActions(),
-		logger:         logger,
+		logger:         &l0,
 	}
 }
 
@@ -48,17 +50,31 @@ func (aj *ActionJob) String() string {
 }
 
 type Actions struct {
-	client         map[string]*ClientEntry
-	mediaType      string
-	action         []string
-	actionJobChan  chan *ActionJob
+	client    map[string]*ClientEntry
+	mediaType string
+	action    []string
+	//actionJobChan  chan *ActionJob
 	currentActions *CurrentActions
 	logger         zLogger.ZLogger
+	actionBuffer   *Queue[*ActionJob]
+}
+
+func (a *Actions) Start() error {
+	a.logger.Debug().Msg("starting actions")
+	a.actionBuffer.Start()
+	return nil
+}
+
+func (a *Actions) Stop() error {
+	a.logger.Debug().Msg("stopping actions")
+	a.actionBuffer.Stop()
+	return nil
 }
 
 func (a *Actions) AddClient(name string, client *ClientEntry) {
 	a.client[name] = client
-	client.setJobChannel(a.actionJobChan)
+	a.actionBuffer.AddSize(client.queueSize)
+	client.setJobQueue(a.actionBuffer)
 }
 
 func (a *Actions) Action(ap *mediaserverproto.ActionParam, actionTimeout time.Duration) (*mediaserverproto.Cache, error) {
@@ -87,15 +103,12 @@ func (a *Actions) Action(ap *mediaserverproto.ActionParam, actionTimeout time.Du
 	}
 	resultChan := make(chan *ActionResult)
 	a.logger.Debug().Msgf("running action %s", actionStr)
-	select {
-	case a.actionJobChan <- &ActionJob{
+	if a.actionBuffer.Push(&ActionJob{
 		id:         uuid.NewString(),
 		ap:         ap,
 		resultChan: resultChan,
-	}:
-		a.currentActions.AddAction(id)
-	case <-time.After(actionTimeout):
-		return nil, errors.Errorf("action start timeout for  %s/%s/%s/%s", item.GetIdentifier().GetCollection(), item.GetIdentifier().GetSignature(), ap.GetAction(), params.String())
+	}) == false {
+		return nil, errors.Errorf("action buffer full for %s/%s/%s/%s", item.GetIdentifier().GetCollection(), item.GetIdentifier().GetSignature(), ap.GetAction(), params.String())
 	}
 	select {
 	case <-time.After(actionTimeout):
@@ -140,6 +153,7 @@ func (a *Actions) RemoveClient(name string) error {
 		if err := client.Close(); err != nil {
 			errs = append(errs, errors.Wrapf(err, "cannot close client %s", name))
 		}
+		a.actionBuffer.SetSize(-client.queueSize)
 		delete(a.client, name)
 	}
 	if len(errs) > 0 {

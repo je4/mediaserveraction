@@ -60,7 +60,7 @@ func (c *Cache) GetAllActionParam() map[string][]string {
 	return c.actionParams
 }
 
-func (c *Cache) AddActions(mediaType string, actionParams map[string][]string) error {
+func (c *Cache) AddActions(mediaType string, actionParams map[string][]string, queueSize int) error {
 	actions := maps.Keys(actionParams)
 	for action, params := range actionParams {
 		key := fmt.Sprintf("%s::%s", mediaType, action)
@@ -76,6 +76,9 @@ func (c *Cache) AddActions(mediaType string, actionParams map[string][]string) e
 	if !ok {
 		// create empty cache entry
 		cd = NewActions(mediaType, actions, c.logger)
+		if err := cd.Start(); err != nil {
+			return errors.Wrapf(err, "cannot start actions %s::%v", mediaType, actions)
+		}
 		// add it for all actions
 		for _, a := range actions {
 			c.SetAction(mediaType, a, cd)
@@ -113,11 +116,25 @@ func (c *Cache) RemoveClientEntry(mediaType, action, address string) error {
 	return errors.Combine(errs...)
 }
 
-func (c *Cache) AddClientEntry(mediaType, action, address string, client *ClientEntry) {
+func (c *Cache) AddClientEntry(mediaType, action, address string, queueSize int, client *ClientEntry) {
 	actions, ok := c.GetActions(mediaType, action)
 	if !ok {
 		actions = NewActions(mediaType, []string{action}, c.logger)
+		if err := actions.Start(); err != nil {
+			c.logger.Error().Err(err).Msgf("cannot start actions %s::%s", mediaType, action)
+			return
+		}
 		c.SetAction(mediaType, action, actions)
 	}
 	actions.AddClient(address, client)
+}
+
+func (c *Cache) Close() error {
+	var errs []error
+	for _, actions := range c.cache {
+		if err := actions.Stop(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Combine(errs...)
 }

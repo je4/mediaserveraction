@@ -119,7 +119,7 @@ func main() {
 	defer resolverClient.Close()
 
 	// create grpc server with resolver for name resolution
-	grpcServer, err := resolverClient.NewServer(conf.LocalAddr, conf.ServerDomains)
+	grpcServer, err := resolverClient.NewServer(conf.LocalAddr, conf.ServerDomains, true)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("cannot create server")
 	}
@@ -140,6 +140,7 @@ func main() {
 	// register the server
 
 	cache := actionCache.NewCache(time.Duration(conf.ActionTimeout), dbClient, logger)
+	defer cache.Close()
 	adService, err := actionDispatcher.NewActionDispatcher(cache, clientTLSConfig, time.Duration(conf.ResolverTimeout), dbClient, logger)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("cannot create action dispatcher service")
