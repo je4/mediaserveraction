@@ -13,11 +13,11 @@ import (
 	"time"
 )
 
-func NewClientEntry(name string, client mediaserverproto.ActionClient, closer io.Closer, interval time.Duration, db mediaserverproto.DatabaseClient, queueSize int) *ClientEntry {
+func NewClientEntry(name string, client mediaserverproto.ActionClient, closer io.Closer, interval time.Duration, dbs map[string]mediaserverproto.DatabaseClient, queueSize int) *ClientEntry {
 	ce := &ClientEntry{
 		Mutex:        sync.Mutex{},
 		name:         name,
-		db:           db,
+		dbs:          dbs,
 		client:       client,
 		clientCloser: closer,
 		clientDone:   make(chan bool),
@@ -32,7 +32,7 @@ func NewClientEntry(name string, client mediaserverproto.ActionClient, closer io
 type ClientEntry struct {
 	sync.Mutex
 	name          string
-	db            mediaserverproto.DatabaseClient
+	dbs           map[string]mediaserverproto.DatabaseClient
 	client        mediaserverproto.ActionClient
 	clientDone    chan bool
 	clientCloser  io.Closer
@@ -59,7 +59,11 @@ func (c *ClientEntry) doIt(job *ActionJob) (*mediaserverproto.Cache, error) {
 	if cache.GetIdentifier() == nil {
 		return cache, nil
 	}
-	resp2, err := c.db.InsertCache(context.Background(), cache)
+	db, ok := c.dbs[job.domain]
+	if !ok {
+		return nil, errors.Errorf("job %s failed: database for domain %s not found", job.id, job.domain)
+	}
+	resp2, err := db.InsertCache(context.Background(), cache)
 	if err != nil {
 		return nil, errors.Wrapf(err, "job %s failed: cannot store cache", job.id)
 	}

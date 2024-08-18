@@ -7,18 +7,20 @@ import (
 	"github.com/je4/utils/v2/pkg/zLogger"
 	"golang.org/x/exp/maps"
 	"slices"
+	"strings"
 	"time"
 )
 
-var coreActions = []string{"item", "metadata"}
+var coreActions = []string{"item", "master", "metadata"}
 
-func NewCache(actionTimeout time.Duration, db mediaserverproto.DatabaseClient, logger zLogger.ZLogger) *Cache {
+func NewCache(actionTimeout time.Duration, dbs map[string]mediaserverproto.DatabaseClient, allDomains []string, logger zLogger.ZLogger) *Cache {
 	cache := &Cache{
 		cache:         map[string]*Actions{},
+		allDomains:    allDomains,
 		actionTimeout: actionTimeout,
 		logger:        logger,
 		actionParams:  map[string][]string{},
-		db:            db,
+		dbs:           dbs,
 	}
 	return cache
 }
@@ -26,18 +28,19 @@ func NewCache(actionTimeout time.Duration, db mediaserverproto.DatabaseClient, l
 type Cache struct {
 	cache         map[string]*Actions
 	actionTimeout time.Duration
-	db            mediaserverproto.DatabaseClient
+	dbs           map[string]mediaserverproto.DatabaseClient
 	logger        zLogger.ZLogger
 	actionParams  map[string][]string
+	allDomains    []string
 }
 
-func (c *Cache) Action(ap *mediaserverproto.ActionParam) (*mediaserverproto.Cache, error) {
+func (c *Cache) Action(ap *mediaserverproto.ActionParam, domain string) (*mediaserverproto.Cache, error) {
 	item := ap.GetItem()
-	actions, ok := c.GetActions(item.GetMetadata().GetType(), ap.GetAction())
+	actions, ok := c.GetAction(item.GetMetadata().GetType(), ap.GetAction(), domain)
 	if !ok {
 		return nil, errors.Errorf("actions %s::%s not found", item.GetMetadata().GetType(), ap.GetAction())
 	}
-	return actions.Action(ap, c.actionTimeout)
+	return actions.Action(ap, domain, c.actionTimeout)
 }
 
 func (c *Cache) GetParams(mediaType string, action string) ([]string, error) {
@@ -51,16 +54,20 @@ func (c *Cache) GetParams(mediaType string, action string) ([]string, error) {
 	return params, nil
 }
 
-func (c *Cache) SetAction(mediaType string, action string, actions *Actions) {
-	sig := fmt.Sprintf("%s::%s", mediaType, action)
-	c.cache[sig] = actions
+func (c *Cache) SetAction(mediaType string, actions, domains []string, actionsObject *Actions) {
+	for _, domain := range domains {
+		for _, action := range actions {
+			sig := fmt.Sprintf("%s::%s::%s", domain, mediaType, action)
+			c.cache[sig] = actionsObject
+		}
+	}
 }
 
 func (c *Cache) GetAllActionParam() map[string][]string {
 	return c.actionParams
 }
 
-func (c *Cache) AddActions(mediaType string, actionParams map[string][]string, queueSize int) error {
+func (c *Cache) AddActions(mediaType string, actionParams map[string][]string, domains []string) error {
 	actions := maps.Keys(actionParams)
 	for action, params := range actionParams {
 		key := fmt.Sprintf("%s::%s", mediaType, action)
@@ -72,7 +79,7 @@ func (c *Cache) AddActions(mediaType string, actionParams map[string][]string, q
 			c.actionParams[key] = params
 		}
 	}
-	cd, ok := c.GetActions(mediaType, actions[0])
+	cd, ok := c.GetActions(mediaType, actions, domains)
 	if !ok {
 		// create empty cache entry
 		cd = NewActions(mediaType, actions, c.logger)
@@ -80,53 +87,99 @@ func (c *Cache) AddActions(mediaType string, actionParams map[string][]string, q
 			return errors.Wrapf(err, "cannot start actions %s::%v", mediaType, actions)
 		}
 		// add it for all actions
-		for _, a := range actions {
-			c.SetAction(mediaType, a, cd)
-		}
+		c.SetAction(mediaType, actions, domains, cd)
 	}
 	return nil
 }
 
-func (c *Cache) GetActions(mediaType, action string) (*Actions, bool) {
-	sig := fmt.Sprintf("%s::%s", mediaType, action)
-	actions, ok := c.cache[sig]
-	return actions, ok
+func (c *Cache) GetAction(mediaType, action, domain string) (*Actions, bool) {
+	sig := fmt.Sprintf("%s::%s::%s", domain, mediaType, action)
+	as, ok := c.cache[sig]
+	return as, ok
+}
+func (c *Cache) GetActions(mediaType string, actions, domains []string) (resultActions *Actions, resultOK bool) {
+	for _, domain := range domains {
+		for _, action := range actions {
+			if as, ok := c.GetAction(mediaType, action, domain); !ok {
+				return nil, false
+			} else {
+				if resultActions != nil && resultActions != as {
+					c.logger.Error().Msgf("different actions for %v::%s::%v found", domains, mediaType, actions)
+					return nil, false
+				}
+				resultActions = as
+				resultOK = true
+			}
+		}
+	}
+	return
 }
 
-func (c *Cache) GetClientEntry(mediaType, action, address string) (*ClientEntry, bool) {
-	actions, ok := c.GetActions(mediaType, action)
+func (c *Cache) GetClientEntryByName(name string) (resultClient *ClientEntry, resultDomains []string, resultMediatype string, resultActions []string, rok bool) {
+	var keys = []string{}
+	for key, actions := range c.cache {
+		if client, ok := actions.GetClient(name); ok {
+			if resultClient != nil && resultClient != client {
+				c.logger.Error().Msgf("client %s found multiple times", name)
+				return nil, nil, "", nil, false
+			}
+			resultClient = client
+			keys = append(keys, key)
+			rok = true
+		}
+	}
+	for _, key := range keys {
+		parts := strings.Split(key, "::")
+		if len(parts) != 3 {
+			c.logger.Error().Msgf("invalid key %s", key)
+			return nil, nil, "", nil, false
+		}
+		resultDomains = append(resultDomains, parts[0])
+		if resultMediatype != "" && resultMediatype != parts[1] {
+			c.logger.Error().Msgf("multiple media types %s - %s found for %s", resultMediatype, parts[1], name)
+			return nil, nil, "", nil, false
+		} else {
+			resultMediatype = parts[1]
+		}
+		resultActions = append(resultActions, parts[2])
+	}
+	return
+}
+
+func (c *Cache) GetClientEntry(mediaType, action, domain, address string) (*ClientEntry, bool) {
+	actions, ok := c.GetAction(mediaType, action, domain)
 	if !ok {
 		return nil, false
 	}
 	return actions.GetClient(address)
 }
 
-func (c *Cache) RemoveClientEntry(mediaType, action, address string) error {
-	actions, ok := c.GetActions(mediaType, action)
-	if !ok {
-		return nil
-	}
+func (c *Cache) RemoveClientEntry(address string) error {
 	var errs []error
-	if err := actions.RemoveClient(address); err != nil {
-		errs = append(errs, err)
-	}
-	if actions.IsEmpty() {
-		delete(c.cache, fmt.Sprintf("%s::%s", mediaType, action))
+	keys := maps.Keys(c.cache)
+	for _, key := range keys {
+		actions := c.cache[key]
+		if err := actions.RemoveClient(address); err != nil {
+			errs = append(errs, err)
+		}
+		if actions.IsEmpty() {
+			delete(c.cache, key)
+		}
 	}
 	return errors.Combine(errs...)
 }
 
-func (c *Cache) AddClientEntry(mediaType, action, address string, queueSize int, client *ClientEntry) {
-	actions, ok := c.GetActions(mediaType, action)
+func (c *Cache) AddClientEntry(mediaType string, actions, domains []string, name string, client *ClientEntry) {
+	ractions, ok := c.GetActions(mediaType, actions, domains)
 	if !ok {
-		actions = NewActions(mediaType, []string{action}, c.logger)
-		if err := actions.Start(); err != nil {
-			c.logger.Error().Err(err).Msgf("cannot start actions %s::%s", mediaType, action)
+		ractions = NewActions(mediaType, actions, c.logger)
+		if err := ractions.Start(); err != nil {
+			c.logger.Error().Err(err).Msgf("cannot start actions %s::%v", mediaType, actions)
 			return
 		}
-		c.SetAction(mediaType, action, actions)
+		c.SetAction(mediaType, actions, domains, ractions)
 	}
-	actions.AddClient(address, client)
+	ractions.AddClient(name, client)
 }
 
 func (c *Cache) Close() error {

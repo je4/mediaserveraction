@@ -7,22 +7,23 @@ import (
 	mediaserverproto "github.com/je4/mediaserverproto/v2/pkg/mediaserver/proto"
 	"github.com/je4/utils/v2/pkg/zLogger"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-func NewActionController(cache *actionCache.Cache, db mediaserverproto.DatabaseClient, logger zLogger.ZLogger) (*mediaserverAction, error) {
+func NewActionController(cache *actionCache.Cache, dbs map[string]mediaserverproto.DatabaseClient, logger zLogger.ZLogger) (*mediaserverAction, error) {
 	_logger := logger.With().Str("rpcService", "mediaserverAction").Logger()
 	return &mediaserverAction{
 		cache:  cache,
-		db:     db,
+		dbs:    dbs,
 		logger: &_logger,
 	}, nil
 }
 
 type mediaserverAction struct {
 	mediaserverproto.UnimplementedActionServer
-	db     mediaserverproto.DatabaseClient
+	dbs    map[string]mediaserverproto.DatabaseClient
 	cache  *actionCache.Cache
 	logger zLogger.ZLogger
 }
@@ -45,11 +46,16 @@ func (d *mediaserverAction) GetParams(ctx context.Context, param *mediaserverpro
 	}, nil
 }
 func (d *mediaserverAction) Action(ctx context.Context, ap *mediaserverproto.ActionParam) (*mediaserverproto.Cache, error) {
+	domains := metadata.ValueFromIncomingContext(ctx, "domain")
+	domain := ""
+	if len(domains) > 0 {
+		domain = domains[0]
+	}
 	item := ap.GetItem()
 	if item == nil {
 		return nil, status.Errorf(codes.InvalidArgument, "no item defined")
 	}
-	cache, err := d.cache.Action(ap)
+	cache, err := d.cache.Action(ap, domain)
 	if err != nil {
 		itemIdentifier := item.GetIdentifier()
 		return nil, status.Errorf(codes.Internal, "error executing action %s/%s/%s/%s: %v", itemIdentifier.GetCollection(), itemIdentifier.GetSignature(), ap.GetAction(), actionCache.ActionParams(ap.GetParams()).String(), err)

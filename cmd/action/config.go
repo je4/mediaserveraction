@@ -3,27 +3,26 @@ package main
 import (
 	"emperror.dev/errors"
 	"github.com/BurntSushi/toml"
-	loaderConfig "github.com/je4/trustutil/v2/pkg/config"
+	"github.com/je4/certloader/v2/pkg/loader"
 	"github.com/je4/utils/v2/pkg/config"
-	"github.com/je4/utils/v2/pkg/zLogger"
+	"github.com/je4/utils/v2/pkg/stashconfig"
 	"io/fs"
 	"os"
 )
 
 type MediaserverActionConfig struct {
-	LocalAddr               string                  `toml:"localaddr"`
-	ServerDomains           []string                `toml:"serverdomains"`
-	ClientDomain            string                  `toml:"clientdomain"`
-	ExternalAddr            string                  `toml:"externaladdr"`
-	Bearer                  string                  `toml:"bearer"`
-	ResolverAddr            string                  `toml:"resolveraddr"`
-	ResolverTimeout         config.Duration         `toml:"resolvertimeout"`
-	ResolverNotFoundTimeout config.Duration         `toml:"resolvernotfoundtimeout"`
-	ActionTimeout           config.Duration         `toml:"actiontimeout"`
-	ServerTLS               *loaderConfig.TLSConfig `toml:"server"`
-	ClientTLS               *loaderConfig.TLSConfig `toml:"client"`
-	GRPCClient              map[string]string       `toml:"grpcclient"`
-	Log                     zLogger.Config          `toml:"log"`
+	LocalAddr               string             `toml:"localaddr"`
+	Domains                 []string           `toml:"domains"`
+	ExternalAddr            string             `toml:"externaladdr"`
+	Bearer                  string             `toml:"bearer"`
+	ResolverAddr            string             `toml:"resolveraddr"`
+	ResolverTimeout         config.Duration    `toml:"resolvertimeout"`
+	ResolverNotFoundTimeout config.Duration    `toml:"resolvernotfoundtimeout"`
+	ActionTimeout           config.Duration    `toml:"actiontimeout"`
+	ServerTLS               *loader.Config     `toml:"server"`
+	ClientTLS               *loader.Config     `toml:"client"`
+	GRPCClient              map[string]string  `toml:"grpcclient"`
+	Log                     stashconfig.Config `toml:"log"`
 }
 
 func LoadMediaserverActionConfig(fSys fs.FS, fp string, conf *MediaserverActionConfig) error {

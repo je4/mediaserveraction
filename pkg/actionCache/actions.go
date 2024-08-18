@@ -20,12 +20,12 @@ func actionStr(collection, signature, action string, params ActionParams) string
 	return fmt.Sprintf("%s/%s/%s/%s", collection, signature, action, params.String())
 }
 
-func NewActions(mediaType string, action []string, logger zLogger.ZLogger) *Actions {
-	l0 := logger.With().Str("mediaType", mediaType).Strs("actions", action).Logger()
+func NewActions(mediaType string, actions []string, logger zLogger.ZLogger) *Actions {
+	l0 := logger.With().Str("mediaType", mediaType).Strs("actions", actions).Logger()
 	return &Actions{
 		client:    map[string]*ClientEntry{},
 		mediaType: mediaType,
-		action:    action,
+		actions:   actions,
 		//actionJobChan:  make(chan *ActionJob),
 		actionBuffer:   NewQueue[*ActionJob](0, &l0),
 		currentActions: NewCurrentActions(),
@@ -41,6 +41,7 @@ type ActionResult struct {
 type ActionJob struct {
 	id         string
 	ap         *mediaserverproto.ActionParam
+	domain     string
 	resultChan chan<- *ActionResult
 }
 
@@ -52,7 +53,7 @@ func (aj *ActionJob) String() string {
 type Actions struct {
 	client    map[string]*ClientEntry
 	mediaType string
-	action    []string
+	actions   []string
 	//actionJobChan  chan *ActionJob
 	currentActions *CurrentActions
 	logger         zLogger.ZLogger
@@ -77,7 +78,7 @@ func (a *Actions) AddClient(name string, client *ClientEntry) {
 	client.setJobQueue(a.actionBuffer)
 }
 
-func (a *Actions) Action(ap *mediaserverproto.ActionParam, actionTimeout time.Duration) (*mediaserverproto.Cache, error) {
+func (a *Actions) Action(ap *mediaserverproto.ActionParam, domain string, actionTimeout time.Duration) (*mediaserverproto.Cache, error) {
 	item := ap.GetItem()
 	var params ActionParams = ap.GetParams()
 	actionString := actionStr(item.GetIdentifier().GetCollection(), item.GetIdentifier().GetSignature(), ap.GetAction(), params)
@@ -105,6 +106,7 @@ func (a *Actions) Action(ap *mediaserverproto.ActionParam, actionTimeout time.Du
 	a.logger.Debug().Msgf("running action %s", actionStr)
 	if a.actionBuffer.Push(&ActionJob{
 		id:         uuid.NewString(),
+		domain:     domain,
 		ap:         ap,
 		resultChan: resultChan,
 	}) == false {

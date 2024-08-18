@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
+	"github.com/je4/certloader/v2/pkg/loader"
 	"github.com/je4/mediaserveraction/v2/config"
 	"github.com/je4/mediaserveraction/v2/pkg/actionCache"
 	"github.com/je4/mediaserveraction/v2/pkg/actionController"
@@ -11,8 +12,6 @@ import (
 	mediaserverproto "github.com/je4/mediaserverproto/v2/pkg/mediaserver/proto"
 	resolver "github.com/je4/miniresolver/v2/pkg/resolver"
 	"github.com/je4/trustutil/v2/pkg/certutil"
-	loaderConfig "github.com/je4/trustutil/v2/pkg/config"
-	"github.com/je4/trustutil/v2/pkg/loader"
 	configutil "github.com/je4/utils/v2/pkg/config"
 	"github.com/je4/utils/v2/pkg/zLogger"
 	ublogger "gitlab.switch.ch/ub-unibas/go-ublogger"
@@ -47,10 +46,10 @@ func main() {
 		ExternalAddr:            "https://localhost:8443",
 		ResolverTimeout:         configutil.Duration(10 * time.Minute),
 		ResolverNotFoundTimeout: configutil.Duration(10 * time.Second),
-		ServerTLS: &loaderConfig.TLSConfig{
+		ServerTLS: &loader.Config{
 			Type: "DEV",
 		},
-		ClientTLS: &loaderConfig.TLSConfig{
+		ClientTLS: &loader.Config{
 			Type: "DEV",
 		},
 	}
@@ -98,7 +97,7 @@ func main() {
 
 	// create TLS Certificate.
 	// the certificate MUST contain <package>.<service> as DNS name
-	for _, domain := range conf.ServerDomains {
+	for _, domain := range conf.Domains {
 		var domainPrefix string
 		if domain != "" {
 			domainPrefix = domain + "."
@@ -119,7 +118,7 @@ func main() {
 	defer resolverClient.Close()
 
 	// create grpc server with resolver for name resolution
-	grpcServer, err := resolverClient.NewServer(conf.LocalAddr, conf.ServerDomains, true)
+	grpcServer, err := resolverClient.NewServer(conf.LocalAddr, conf.Domains, true)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("cannot create server")
 	}
@@ -127,27 +126,28 @@ func main() {
 	l2 = _logger.With().Timestamp().Str("addr", addr).Logger() //.Output(output)
 	logger = &l2
 
-	var domainPrefix string
-	if conf.ClientDomain != "" {
-		domainPrefix = conf.ClientDomain + "."
-	}
-	dbClient, err := resolver.NewClient[mediaserverproto.DatabaseClient](resolverClient, mediaserverproto.NewDatabaseClient, domainPrefix+mediaserverproto.Database_ServiceDesc.ServiceName)
+	dbClients, err := resolver.NewClients[mediaserverproto.DatabaseClient](
+		resolverClient,
+		mediaserverproto.NewDatabaseClient,
+		mediaserverproto.Database_ServiceDesc.ServiceName, conf.Domains)
 	if err != nil {
 		logger.Panic().Msgf("cannot create mediaserverdb grpc client: %v", err)
 	}
-	resolver.DoPing(dbClient, logger)
+	for _, dbClient := range dbClients {
+		resolver.DoPing(dbClient, logger)
+	}
 
 	// register the server
 
-	cache := actionCache.NewCache(time.Duration(conf.ActionTimeout), dbClient, logger)
+	cache := actionCache.NewCache(time.Duration(conf.ActionTimeout), dbClients, conf.Domains, logger)
 	defer cache.Close()
-	adService, err := actionDispatcher.NewActionDispatcher(cache, clientTLSConfig, time.Duration(conf.ResolverTimeout), dbClient, logger)
+	adService, err := actionDispatcher.NewActionDispatcher(cache, clientTLSConfig, resolverClient, time.Duration(conf.ResolverTimeout), dbClients, conf.Domains, logger)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("cannot create action dispatcher service")
 	}
 	mediaserverproto.RegisterActionDispatcherServer(grpcServer, adService)
 
-	acService, err := actionController.NewActionController(cache, dbClient, logger)
+	acService, err := actionController.NewActionController(cache, dbClients, logger)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("cannot create action controller service")
 	}
