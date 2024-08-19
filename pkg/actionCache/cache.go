@@ -143,6 +143,10 @@ func (c *Cache) GetClientEntryByName(name string) (resultClient *ClientEntry, re
 		}
 		resultActions = append(resultActions, parts[2])
 	}
+	slices.Sort(resultDomains)
+	slices.Sort(resultActions)
+	slices.Compact(resultDomains)
+	slices.Compact(resultActions)
 	return
 }
 
