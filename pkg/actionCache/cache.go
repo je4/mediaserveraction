@@ -145,8 +145,8 @@ func (c *Cache) GetClientEntryByName(name string) (resultClient *ClientEntry, re
 	}
 	slices.Sort(resultDomains)
 	slices.Sort(resultActions)
-	slices.Compact(resultDomains)
-	slices.Compact(resultActions)
+	resultDomains = slices.Compact(resultDomains)
+	resultActions = slices.Compact(resultActions)
 	return
 }
 

@@ -7,6 +7,7 @@ import (
 	mediaserverproto "github.com/je4/mediaserverproto/v2/pkg/mediaserver/proto"
 	"github.com/je4/utils/v2/pkg/zLogger"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"io"
 	"sync"
@@ -52,7 +53,10 @@ func (c *ClientEntry) setJobQueue(jobQueue *Queue[*ActionJob]) {
 }
 
 func (c *ClientEntry) doIt(job *ActionJob) (*mediaserverproto.Cache, error) {
-	cache, err := c.client.Action(context.Background(), job.ap)
+	md := metadata.New(nil)
+	md.Set("domain", job.domain)
+	ctx := metadata.NewOutgoingContext(context.Background(), md)
+	cache, err := c.client.Action(ctx, job.ap)
 	if err != nil {
 		return nil, errors.Wrapf(err, "job %v failed", job)
 	}

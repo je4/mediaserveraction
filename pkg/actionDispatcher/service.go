@@ -78,9 +78,7 @@ func (d *mediaserverActionDispatcher) AddController(ctx context.Context, param *
 
 	clientEntry, rdomains, rmediatype, ractions, ok := d.cache.GetClientEntryByName(name)
 	if ok {
-		slices.Sort(rdomains)
 		slices.Sort(domains)
-		slices.Sort(ractions)
 		slices.Sort(actions)
 		if rmediatype != param.GetType() || slices.Compare(ractions, actions) != 0 || slices.Compare(rdomains, domains) != 0 {
 			return nil, status.Errorf(codes.InvalidArgument, "controller %s already defined with different type/actions/domains", name)
