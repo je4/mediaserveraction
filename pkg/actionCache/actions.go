@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	mediaserverproto "github.com/je4/mediaserverproto/v2/pkg/mediaserver/proto"
 	"github.com/je4/utils/v2/pkg/zLogger"
+	"golang.org/x/exp/maps"
 	"time"
 )
 
@@ -20,13 +21,11 @@ func actionStr(collection, signature, action string, params ActionParams) string
 	return fmt.Sprintf("%s/%s/%s/%s", collection, signature, action, params.String())
 }
 
-func NewActions(mediaType string, actions []string, logger zLogger.ZLogger) *Actions {
-	l0 := logger.With().Str("mediaType", mediaType).Strs("actions", actions).Logger()
+func NewActions(actions map[string][]string, logger zLogger.ZLogger) *Actions {
+	l0 := logger.With().Strs("mediaTypes", maps.Keys(actions)).Logger()
 	return &Actions{
-		client:    map[string]*ClientEntry{},
-		mediaType: mediaType,
-		actions:   actions,
-		//actionJobChan:  make(chan *ActionJob),
+		client:         map[string]*ClientEntry{},
+		actions:        actions,
 		actionBuffer:   NewQueue[*ActionJob](0, &l0),
 		currentActions: NewCurrentActions(),
 		logger:         &l0,
@@ -51,9 +50,8 @@ func (aj *ActionJob) String() string {
 }
 
 type Actions struct {
-	client    map[string]*ClientEntry
-	mediaType string
-	actions   []string
+	client  map[string]*ClientEntry
+	actions map[string][]string
 	//actionJobChan  chan *ActionJob
 	currentActions *CurrentActions
 	logger         zLogger.ZLogger
@@ -135,18 +133,18 @@ func (a *Actions) GetClient(name string) (*ClientEntry, bool) {
 	return client, ok
 }
 
-func (a *Actions) GetParams(action string) ([]string, error) {
+func (a *Actions) GetParams(_type, action string) ([]string, error) {
 	for address, client := range a.client {
 		resp, err := client.client.GetParams(context.Background(), &mediaserverproto.ParamsParam{
-			Type:   a.mediaType,
+			Type:   _type,
 			Action: action,
 		})
 		if err != nil {
-			return nil, errors.Wrapf(err, "cannot get params for %s::%s from %s", a.mediaType, action, address)
+			return nil, errors.Wrapf(err, "cannot get params for %s::%s from %s", _type, action, address)
 		}
 		return resp.GetValues(), nil
 	}
-	return nil, errors.Errorf("no client found for %s::%s", a.mediaType, action)
+	return nil, errors.Errorf("no client found for %s::%s", _type, action)
 }
 
 func (a *Actions) RemoveClient(name string) error {

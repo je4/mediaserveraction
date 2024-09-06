@@ -13,7 +13,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"slices"
 	"time"
 )
 
@@ -53,10 +52,6 @@ func (d *mediaserverActionDispatcher) Ping(context.Context, *emptypb.Empty) (*pb
 // Caveat: different services sharing an action MUST share all actions (no partial intersection of actions allowed)
 func (d *mediaserverActionDispatcher) AddController(ctx context.Context, param *mediaserverproto.ActionDispatcherParam) (*mediaserverproto.ActionDispatcherDefaultResponse, error) {
 	actionParams := param.GetActions()
-	actions := maps.Keys(actionParams)
-	if len(actions) == 0 {
-		return nil, status.Errorf(codes.InvalidArgument, "no actions defined")
-	}
 	instance := param.GetName()
 	if instance == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "no instance defined")
@@ -67,20 +62,22 @@ func (d *mediaserverActionDispatcher) AddController(ctx context.Context, param *
 		domains = d.domains
 	}
 
-	aParams := map[string][]string{}
-	for action, params := range actionParams {
-		aParams[action] = params.GetValues()
+	aParams := actionCache.TypeActionParams{}
+	for _type, actions := range actionParams {
+		aParams[_type] = actionCache.TypeAction{}
+		for action, params := range actions.GetValues() {
+			aParams[_type][action] = params.GetValues()
+		}
 	}
-	if err := d.cache.AddActions(param.GetType(), aParams, domains); err != nil {
+	if err := d.cache.AddActions(aParams, domains); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "cannot add actions: %v", err)
 	}
 	name := fmt.Sprintf("%s.%s", instance, mediaserverproto.Action_ServiceDesc.ServiceName)
 
-	clientEntry, rdomains, rmediatype, ractions, ok := d.cache.GetClientEntryByName(name)
+	ctrlName := aParams.GetTypeActions().String()
+	clientEntry, _, ractions, ok := d.cache.GetClientEntryByName(name)
 	if ok {
-		slices.Sort(domains)
-		slices.Sort(actions)
-		if rmediatype != param.GetType() || slices.Compare(ractions, actions) != 0 || slices.Compare(rdomains, domains) != 0 {
+		if !aParams.GetTypeActions().Equals(ractions) {
 			return nil, status.Errorf(codes.InvalidArgument, "controller %s already defined with different type/actions/domains", name)
 		}
 		// if client already exists, refresh timeout
@@ -98,8 +95,8 @@ func (d *mediaserverActionDispatcher) AddController(ctx context.Context, param *
 		if queueSize == 0 {
 			queueSize = int(2*param.GetConcurrency() + 1)
 		}
-		clientEntry = actionCache.NewClientEntry(fmt.Sprintf("%v::%s::%v/%s", domains, param.GetType(), actions, name), c, closer, d.refreshInterval, d.dbs, queueSize)
-		d.cache.AddClientEntry(param.GetType(), actions, domains, name, clientEntry)
+		clientEntry = actionCache.NewClientEntry(ctrlName, c, closer, d.refreshInterval, d.dbs, queueSize)
+		d.cache.AddClientEntry(aParams, domains, name, clientEntry)
 		if err := clientEntry.Start(param.GetConcurrency(), d.logger); err != nil {
 			return nil, status.Errorf(codes.Internal, "cannot start client %s: %v", name, err)
 		}
@@ -107,16 +104,16 @@ func (d *mediaserverActionDispatcher) AddController(ctx context.Context, param *
 	return &mediaserverproto.ActionDispatcherDefaultResponse{
 		Response: &pbgeneric.DefaultResponse{
 			Status:  pbgeneric.ResultStatus_OK,
-			Message: fmt.Sprintf("controller %s added to %s::%v", name, param.GetType(), actions),
+			Message: fmt.Sprintf("controller %s added to %s", name, ctrlName),
 		},
 		NextCallWait: int64(d.refreshInterval.Seconds()),
 	}, nil
 }
 func (d *mediaserverActionDispatcher) RemoveController(ctx context.Context, param *mediaserverproto.ActionDispatcherParam) (*pbgeneric.DefaultResponse, error) {
-	actionParams := param.GetActions()
-	actions := maps.Keys(actionParams)
-	if len(actions) == 0 {
-		return nil, status.Errorf(codes.InvalidArgument, "no actions defined")
+	typeActionParams := param.GetActions()
+	mediaTypes := maps.Keys(typeActionParams)
+	if len(mediaTypes) == 0 {
+		return nil, status.Errorf(codes.InvalidArgument, "no mediaTypes defined")
 	}
 	name := fmt.Sprintf("%s.%s", param.GetName(), mediaserverproto.Action_ServiceDesc.ServiceName)
 	if err := d.cache.RemoveClientEntry(name); err != nil {
@@ -127,18 +124,23 @@ func (d *mediaserverActionDispatcher) RemoveController(ctx context.Context, para
 	}
 	return &pbgeneric.DefaultResponse{
 		Status:  pbgeneric.ResultStatus_OK,
-		Message: fmt.Sprintf("controller %s removed from %s::%v", name, param.GetType(), actions),
+		Message: fmt.Sprintf("controller %s removed from %s", name, typeActionParams),
 	}, nil
 }
 
 func (d *mediaserverActionDispatcher) GetActions(context.Context, *emptypb.Empty) (*mediaserverproto.ActionMap, error) {
-	actions := d.cache.GetAllActionParam()
+	typeActions := d.cache.GetAllActionParam()
 	res := &mediaserverproto.ActionMap{
-		Actions: map[string]*pbgeneric.StringList{},
+		Actions: map[string]*mediaserverproto.StringListMap{},
 	}
-	for action, params := range actions {
-		res.Actions[action] = &pbgeneric.StringList{
-			Values: params,
+	for mediaType, actions := range typeActions {
+		res.Actions[mediaType] = &mediaserverproto.StringListMap{
+			Values: map[string]*pbgeneric.StringList{},
+		}
+		for action, params := range actions {
+			res.Actions[mediaType].Values[action] = &pbgeneric.StringList{
+				Values: params,
+			}
 		}
 	}
 	return res, nil
