@@ -256,7 +256,7 @@ func (c *Cache) AddClientEntry(typeActionsParams TypeActionParams, domains []str
 }
 
 func (c *Cache) Close() error {
-	var errs []error
+	var errs = []error{}
 	for _, actions := range c.cache {
 		if err := actions.Stop(); err != nil {
 			errs = append(errs, err)

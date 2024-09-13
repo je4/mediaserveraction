@@ -9,6 +9,7 @@ import (
 	mediaserverproto "github.com/je4/mediaserverproto/v2/pkg/mediaserver/proto"
 	"github.com/je4/utils/v2/pkg/zLogger"
 	"golang.org/x/exp/maps"
+	"google.golang.org/grpc/metadata"
 	"time"
 )
 
@@ -24,6 +25,7 @@ func actionStr(collection, signature, action string, params ActionParams) string
 func NewActions(actions map[string][]string, logger zLogger.ZLogger) *Actions {
 	l0 := logger.With().Strs("mediaTypes", maps.Keys(actions)).Logger()
 	return &Actions{
+		done:           make(chan bool),
 		client:         map[string]*ClientEntry{},
 		actions:        actions,
 		actionBuffer:   NewQueue[*ActionJob](0, &l0),
@@ -56,18 +58,44 @@ type Actions struct {
 	currentActions *CurrentActions
 	logger         zLogger.ZLogger
 	actionBuffer   *Queue[*ActionJob]
+	done           chan bool
 }
 
 func (a *Actions) Start() error {
 	a.logger.Debug().Msg("starting actions")
 	a.actionBuffer.Start()
+	go func() {
+		for {
+			select {
+			case <-time.After(1 * time.Second):
+				now := time.Now()
+				for _, client := range a.client {
+					if client.clientTimeout.Before(now) {
+						if err := a.RemoveClient(client.name); err != nil {
+							a.logger.Error().Err(err).Msgf("cannot remove client %s", client.name)
+						}
+					}
+				}
+			case <-a.done:
+				a.logger.Debug().Msg("client timeout check stopped")
+				return
+			}
+		}
+	}()
 	return nil
 }
 
 func (a *Actions) Stop() error {
+	var errs = []error{}
+	a.done <- true
 	a.logger.Debug().Msg("stopping actions")
 	a.actionBuffer.Stop()
-	return nil
+	for _, client := range a.client {
+		if err := a.RemoveClient(client.name); err != nil {
+			errs = append(errs, errors.Wrapf(err, "cannot remove client %s", client.name))
+		}
+	}
+	return errors.Combine(errs...)
 }
 
 func (a *Actions) AddClient(name string, client *ClientEntry) {
@@ -101,7 +129,7 @@ func (a *Actions) Action(ap *mediaserverproto.ActionParam, domain string, action
 		}
 	}
 	resultChan := make(chan *ActionResult)
-	a.logger.Debug().Msgf("running action %s", actionStr)
+	a.logger.Debug().Msgf("running action %s", actionString)
 	if a.actionBuffer.Push(&ActionJob{
 		id:         uuid.NewString(),
 		domain:     domain,
@@ -133,9 +161,13 @@ func (a *Actions) GetClient(name string) (*ClientEntry, bool) {
 	return client, ok
 }
 
-func (a *Actions) GetParams(_type, action string) ([]string, error) {
+func (a *Actions) GetParams(_type, action, domain string) ([]string, error) {
+	md := metadata.New(nil)
+	md.Set("domain", domain)
+	ctx := metadata.NewOutgoingContext(context.Background(), md)
+
 	for address, client := range a.client {
-		resp, err := client.client.GetParams(context.Background(), &mediaserverproto.ParamsParam{
+		resp, err := client.client.GetParams(ctx, &mediaserverproto.ParamsParam{
 			Type:   _type,
 			Action: action,
 		})

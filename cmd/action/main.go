@@ -140,7 +140,11 @@ func main() {
 	// register the server
 
 	cache := actionCache.NewCache(time.Duration(conf.ActionTimeout), dbClients, conf.Domains, logger)
-	defer cache.Close()
+	defer func() {
+		if err := cache.Close(); err != nil {
+			logger.Error().Err(err).Msg("cannot close cache")
+		}
+	}()
 	adService, err := actionDispatcher.NewActionDispatcher(cache, clientTLSConfig, resolverClient, time.Duration(conf.ResolverTimeout), dbClients, conf.Domains, logger)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("cannot create action dispatcher service")

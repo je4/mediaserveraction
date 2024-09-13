@@ -88,7 +88,6 @@ func (c *ClientEntry) Start(workers uint32, logger zLogger.ZLogger) error {
 			defer c.wg.Done()
 			logger.Info().Str("client", c.name).Uint32("worker", thisWorkerNum).Msg("worker started")
 			for {
-
 				select {
 				case job := <-c.jobQueue.Out():
 					logger.Info().Str("job", job.id).Str("client", c.name).Uint32("worker", thisWorkerNum).Msgf("job %v", job)

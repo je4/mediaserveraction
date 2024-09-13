@@ -104,7 +104,7 @@ func (d *mediaserverActionDispatcher) AddController(ctx context.Context, param *
 	return &mediaserverproto.ActionDispatcherDefaultResponse{
 		Response: &pbgeneric.DefaultResponse{
 			Status:  pbgeneric.ResultStatus_OK,
-			Message: fmt.Sprintf("controller %s added to %s", name, ctrlName),
+			Message: fmt.Sprintf("controller for domains %v %s added to %s", domains, name, ctrlName),
 		},
 		NextCallWait: int64(d.refreshInterval.Seconds()),
 	}, nil
