@@ -129,10 +129,23 @@ func (c *Cache) GetParams(mediaType string, action string) ([]string, error) {
 }
 
 func (c *Cache) SetAction(typeActionsParam TypeActionParams, domains []string, actionsObject *Actions) {
-	c.typeActionParams = typeActionsParam
+	//c.typeActionParams = typeActionsParam
+	if c.typeActionParams == nil {
+		c.typeActionParams = TypeActionParams{}
+	}
+	var ok bool
 	for _, domain := range domains {
 		for mediaType, actions := range typeActionsParam {
-			for action, _ := range actions {
+			if _, ok = c.typeActionParams[mediaType]; !ok {
+				c.typeActionParams[mediaType] = map[string][]string{}
+			}
+			for action, params := range actions {
+				if _, ok = c.typeActionParams[mediaType][action]; !ok {
+					c.typeActionParams[mediaType][action] = []string{}
+				}
+				c.typeActionParams[mediaType][action] = append(c.typeActionParams[mediaType][action], params...)
+				slices.Sort(c.typeActionParams[mediaType][action])
+				c.typeActionParams[mediaType][action] = slices.Compact(c.typeActionParams[mediaType][action])
 				sig := fmt.Sprintf("%s::%s::%s", domain, mediaType, action)
 				c.cache[sig] = actionsObject
 			}

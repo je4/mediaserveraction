@@ -18,7 +18,7 @@ type = "minivault"
 initialtimeout = "1h"
 [resttls.minivault]
 baseurl = "https://localhost:8759/api/v1"
-parenttoken = "pa.2dc2b89922d3997b.652a813da024807d"
+parenttoken = "pa.2dd5bf83545bab0f.906016a45dc58eb3"
 tokentype = "server_cert"
 tokenpolicies = ["mediaserveraction"]
 tokeninterval = "1h"
@@ -37,7 +37,7 @@ type = "minivault"
 initialtimeout = "1h"
 [server.minivault]
 baseurl = "https://localhost:8759/api/v1"
-parenttoken = "pa.2dc2b89922d3997b.652a813da024807d" #pa.2dc483e73851c137.15d94e61e0b377f1
+parenttoken = "pa.2dd5bf83545bab0f.906016a45dc58eb3" #pa.2dc483e73851c137.15d94e61e0b377f1
 tokentype = "server_cert"
 tokenpolicies = ["mediaserveraction"]
 tokeninterval = "1h"
@@ -57,7 +57,7 @@ type = "minivault"
 initialtimeout = "1h"
 [client.minivault]
 baseurl = "https://localhost:8759/api/v1"
-parenttoken = "pa.2dc2b89922d3997b.652a813da024807d" #pa.2dc483e73851c137.15d94e61e0b377f1
+parenttoken = "pa.2dd5bf83545bab0f.906016a45dc58eb3" #pa.2dc483e73851c137.15d94e61e0b377f1
 tokentype = "client_cert"
 tokenpolicies = ["mediaserveraction"]
 tokeninterval = "2m"

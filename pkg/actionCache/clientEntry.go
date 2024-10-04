@@ -120,14 +120,17 @@ func (c *ClientEntry) SetTimeout(expiration time.Time) {
 
 func (c *ClientEntry) Close() error {
 	c.Lock()
-	for workerDone := range c.workersDone {
+	for workerDone, _ := range c.workersDone {
+		c.workersDone[workerDone] <- true
 		close(c.workersDone[workerDone])
 	}
+	clear(c.workersDone)
 	c.Unlock()
 	done := make(chan bool)
 	go func() {
-		defer close(done)
 		c.wg.Wait()
+		done <- true
+		close(done)
 	}()
 	select {
 	case <-done:
@@ -138,7 +141,5 @@ func (c *ClientEntry) Close() error {
 }
 
 func (c *ClientEntry) RefreshTimeout(interval time.Duration) {
-	c.Lock()
-	defer c.Unlock()
-	c.clientTimeout = time.Now().Add(interval)
+	c.SetTimeout(time.Now().Add(interval))
 }

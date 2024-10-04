@@ -80,22 +80,22 @@ func (d *mediaserverActionDispatcher) AddController(ctx context.Context, param *
 		if !aParams.GetTypeActions().Equals(ractions) {
 			return nil, status.Errorf(codes.InvalidArgument, "controller %s already defined with different type/actions/domains", name)
 		}
-		// if client already exists, refresh timeout
-		clientEntry.SetTimeout(time.Now().Add(d.refreshInterval))
+		// refresh timeout
+		clientEntry.RefreshTimeout(d.refreshInterval)
 	} else {
 		// create new client
-		c, closer, err := resolver.NewClientCloser[mediaserverproto.ActionClient](d.resolverClient, mediaserverproto.NewActionClient, mediaserverproto.Action_ServiceDesc.ServiceName, instance)
+		newActionClient, closer, err := resolver.NewClientCloser[mediaserverproto.ActionClient](d.resolverClient, mediaserverproto.NewActionClient, mediaserverproto.Action_ServiceDesc.ServiceName, instance)
 		if err != nil {
 			d.logger.Error().Msgf("cannot create mediaserveraction grpc client '%s': %v", name, err)
 			return nil, status.Errorf(codes.Internal, "cannot create client: %v", err)
 		}
-		resolver.DoPing(c, d.logger)
+		resolver.DoPing(newActionClient, d.logger)
 
 		queueSize := int(param.GetQueueSize())
 		if queueSize == 0 {
 			queueSize = int(2*param.GetConcurrency() + 1)
 		}
-		clientEntry = actionCache.NewClientEntry(ctrlName, c, closer, d.refreshInterval, d.dbs, queueSize)
+		clientEntry = actionCache.NewClientEntry(ctrlName, newActionClient, closer, d.refreshInterval, d.dbs, queueSize)
 		d.cache.AddClientEntry(aParams, domains, name, clientEntry)
 		if err := clientEntry.Start(param.GetConcurrency(), d.logger); err != nil {
 			return nil, status.Errorf(codes.Internal, "cannot start client %s: %v", name, err)
