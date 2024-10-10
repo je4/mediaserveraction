@@ -6,6 +6,7 @@ import (
 	"emperror.dev/errors"
 	"fmt"
 	"github.com/google/uuid"
+	actionParams "github.com/je4/mediaserverhelper/v2/pkg/actionParams"
 	mediaserverproto "github.com/je4/mediaserverproto/v2/pkg/mediaserver/proto"
 	"github.com/je4/utils/v2/pkg/zLogger"
 	"golang.org/x/exp/maps"
@@ -18,7 +19,7 @@ func actionID(action string) string {
 	return fmt.Sprintf("%x", actionIDBytes)
 }
 
-func actionStr(collection, signature, action string, params ActionParams) string {
+func actionStr(collection, signature, action string, params actionParams.ActionParams) string {
 	return fmt.Sprintf("%s/%s/%s/%s", collection, signature, action, params.String())
 }
 
@@ -48,7 +49,7 @@ type ActionJob struct {
 
 func (aj *ActionJob) String() string {
 	item := aj.ap.GetItem()
-	return fmt.Sprintf("ActionJob{id: %s, action: %s/%s/%s/%s}", aj.id, item.GetIdentifier().GetCollection(), item.GetIdentifier().GetSignature(), aj.ap.GetAction(), ActionParams(aj.ap.GetParams()).String())
+	return fmt.Sprintf("ActionJob{id: %s, action: %s/%s/%s/%s}", aj.id, item.GetIdentifier().GetCollection(), item.GetIdentifier().GetSignature(), aj.ap.GetAction(), actionParams.ActionParams(aj.ap.GetParams()).String())
 }
 
 type Actions struct {
@@ -106,7 +107,7 @@ func (a *Actions) AddClient(name string, client *ClientEntry) {
 
 func (a *Actions) Action(ap *mediaserverproto.ActionParam, domain string, actionTimeout time.Duration) (*mediaserverproto.Cache, error) {
 	item := ap.GetItem()
-	var params ActionParams = ap.GetParams()
+	var params actionParams.ActionParams = ap.GetParams()
 	actionString := actionStr(item.GetIdentifier().GetCollection(), item.GetIdentifier().GetSignature(), ap.GetAction(), params)
 	id := actionID(actionString)
 	if a.currentActions.HasAction(id) {

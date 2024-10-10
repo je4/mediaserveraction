@@ -1,21 +1,22 @@
 module github.com/je4/mediaserveraction/v2
 
-go 1.23.0
+go 1.23.1
 
 require (
 	emperror.dev/errors v0.8.1
 	github.com/BurntSushi/toml v1.4.0
 	github.com/google/uuid v1.6.0
-	github.com/je4/certloader/v2 v2.0.8
+	github.com/je4/certloader/v2 v2.0.9
 	github.com/je4/genericproto/v2 v2.0.3
+	github.com/je4/mediaserverhelper/v2 v2.0.0-20241010144718-16a399ef3a86
 	github.com/je4/mediaserverproto/v2 v2.0.46
 	github.com/je4/miniresolver/v2 v2.0.25
 	github.com/je4/trustutil/v2 v2.0.26
 	github.com/je4/utils/v2 v2.0.50
-	gitlab.switch.ch/ub-unibas/go-ublogger v0.0.0-20240612084645-ba4f8357c0d4
-	golang.org/x/exp v0.0.0-20240909161429-701f63a606c0
+	gitlab.switch.ch/ub-unibas/go-ublogger v1.0.0
+	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c
 	google.golang.org/grpc v1.67.1
-	google.golang.org/protobuf v1.34.2
+	google.golang.org/protobuf v1.35.1
 )
 
 require (
@@ -61,15 +62,15 @@ require (
 	github.com/telkomdev/go-stash v1.0.6 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
-	go.step.sm/crypto v0.53.0 // indirect
+	go.step.sm/crypto v0.54.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/arch v0.10.0 // indirect
-	golang.org/x/crypto v0.27.0 // indirect
-	golang.org/x/net v0.29.0 // indirect
-	golang.org/x/sys v0.25.0 // indirect
-	golang.org/x/text v0.18.0 // indirect
-	golang.org/x/tools v0.25.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240930140551-af27646dc61f // indirect
+	golang.org/x/arch v0.11.0 // indirect
+	golang.org/x/crypto v0.28.0 // indirect
+	golang.org/x/net v0.30.0 // indirect
+	golang.org/x/sys v0.26.0 // indirect
+	golang.org/x/text v0.19.0 // indirect
+	golang.org/x/tools v0.26.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20241007155032-5fefd90f89a9 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 )

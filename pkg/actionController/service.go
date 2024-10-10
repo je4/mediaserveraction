@@ -4,6 +4,7 @@ import (
 	"context"
 	pbgeneric "github.com/je4/genericproto/v2/pkg/generic/proto"
 	"github.com/je4/mediaserveraction/v2/pkg/actionCache"
+	actionParams "github.com/je4/mediaserverhelper/v2/pkg/actionParams"
 	mediaserverproto "github.com/je4/mediaserverproto/v2/pkg/mediaserver/proto"
 	"github.com/je4/utils/v2/pkg/zLogger"
 	"google.golang.org/grpc/codes"
@@ -58,7 +59,7 @@ func (d *mediaserverAction) Action(ctx context.Context, ap *mediaserverproto.Act
 	cache, err := d.cache.Action(ap, domain)
 	if err != nil {
 		itemIdentifier := item.GetIdentifier()
-		return nil, status.Errorf(codes.Internal, "error executing action %s/%s/%s/%s: %v", itemIdentifier.GetCollection(), itemIdentifier.GetSignature(), ap.GetAction(), actionCache.ActionParams(ap.GetParams()).String(), err)
+		return nil, status.Errorf(codes.Internal, "error executing action %s/%s/%s/%s: %v", itemIdentifier.GetCollection(), itemIdentifier.GetSignature(), ap.GetAction(), actionParams.ActionParams(ap.GetParams()).String(), err)
 	}
 	return cache, nil
 }
